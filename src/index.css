@@ -1,0 +1,265 @@
+@import url('https://fonts.googleapis.com/css2?family=Lalezar&family=Oi&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Aref+Ruqaa+Ink:wght@400;700&family=Open+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 180 30% 98%;
+    --foreground: 185 40% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 185 40% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 185 40% 12%;
+    --primary: 185 70% 28%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 185 30% 92%;
+    --secondary-foreground: 185 40% 20%;
+    --muted: 185 20% 94%;
+    --muted-foreground: 185 20% 45%;
+    --accent: 160 60% 38%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 185 25% 86%;
+    --input: 185 25% 86%;
+    --ring: 185 70% 28%;
+    --radius: 0.6rem;
+
+    /* Nibras Custom Tokens */
+    --teal-950: #050f10;
+    --teal-900: #0B2428;
+    --teal-800: #113338;
+    --teal-700: #1A4D53;
+    --teal-600: #236068;
+    --teal-500: #2D7A84;
+    --teal-400: #3E9AA6;
+    --teal-300: #62B8C2;
+    --teal-200: #A0D8DE;
+    --teal-100: #D6F0F3;
+    --teal-50:  #EEF9FA;
+    --gold: #C9A84C;
+    --gold-light: #F0D080;
+  }
+
+  .dark {
+    --background: 185 55% 7%;
+    --foreground: 185 20% 92%;
+    --card: 185 50% 9%;
+    --card-foreground: 185 20% 92%;
+    --popover: 185 50% 9%;
+    --popover-foreground: 185 20% 92%;
+    --primary: 185 65% 52%;
+    --primary-foreground: 185 80% 8%;
+    --secondary: 185 40% 14%;
+    --secondary-foreground: 185 20% 88%;
+    --muted: 185 35% 12%;
+    --muted-foreground: 185 20% 55%;
+    --accent: 160 55% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 185 35% 18%;
+    --input: 185 35% 18%;
+    --ring: 185 65% 52%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Open Sans', 'IBM Plex Sans Arabic', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  [dir="rtl"] body,
+  [dir="rtl"] {
+    font-family: 'IBM Plex Sans Arabic', 'Open Sans', sans-serif;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Lalezar', 'Oi', serif;
+    letter-spacing: 0.02em;
+  }
+
+  [dir="rtl"] h1,
+  [dir="rtl"] h2,
+  [dir="rtl"] h3,
+  [dir="rtl"] .font-display {
+    font-family: 'Lalezar', serif;
+    letter-spacing: 0;
+  }
+
+  .font-arabic-body {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+  }
+  .font-ruqaa {
+    font-family: 'Aref Ruqaa Ink', serif;
+  }
+  .font-en-body {
+    font-family: 'Open Sans', sans-serif;
+  }
+}
+
+@layer components {
+  /* --- Scrollbar --- */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-muted; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/40; }
+
+  /* --- Teal glass card --- */
+  .glass-card {
+    @apply rounded-xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm;
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted)/0.5) 100%);
+  }
+  .dark .glass-card {
+    background: linear-gradient(135deg, hsl(185 50% 10%) 0%, hsl(185 40% 8%) 100%);
+    border-color: hsl(185 35% 20%);
+    box-shadow: 0 4px 24px -4px rgba(11,36,40,0.6), inset 0 1px 0 rgba(62,154,166,0.1);
+  }
+
+  /* --- Nav link --- */
+  .nav-link {
+    @apply relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200;
+  }
+  .nav-link:hover { @apply text-foreground bg-muted/60; }
+  .nav-link.active {
+    @apply text-primary bg-primary/10 font-semibold;
+  }
+  .dark .nav-link.active {
+    background: hsl(185 50% 14%);
+    color: hsl(185 65% 62%);
+  }
+
+  /* --- Teal gradient button --- */
+  .btn-teal {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200;
+    background: linear-gradient(135deg, var(--teal-700), var(--teal-500));
+    box-shadow: 0 2px 12px -2px rgba(26,77,83,0.5);
+  }
+  .btn-teal:hover {
+    background: linear-gradient(135deg, var(--teal-600), var(--teal-400));
+    box-shadow: 0 4px 18px -2px rgba(45,122,132,0.55);
+    transform: translateY(-1px);
+  }
+  .btn-teal:active { transform: translateY(0); }
+
+  /* --- Accent gold glow badge --- */
+  .badge-gold {
+    @apply text-xs font-semibold px-2 py-0.5 rounded-full;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    color: #1A2800;
+  }
+
+  /* --- Section wrapper --- */
+  .section-wrapper {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6;
+  }
+
+  /* --- Flashcard flip --- */
+  .perspective { perspective: 1200px; }
+  .card-inner {
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card-inner.flipped { transform: rotateY(180deg); }
+  .card-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .card-back { transform: rotateY(180deg); }
+
+  /* --- Quiz progress bar --- */
+  .quiz-progress {
+    @apply h-1.5 rounded-full overflow-hidden bg-muted;
+  }
+  .quiz-progress-fill {
+    @apply h-full rounded-full transition-all duration-500;
+    background: linear-gradient(90deg, var(--teal-500), var(--teal-300));
+  }
+
+  /* --- Chat bubble --- */
+  .chat-bubble-user {
+    @apply rounded-2xl rounded-br-sm px-4 py-2.5 text-sm max-w-[78%] ms-auto;
+    background: linear-gradient(135deg, var(--teal-700), var(--teal-500));
+    color: white;
+  }
+  .dark .chat-bubble-user {
+    background: linear-gradient(135deg, var(--teal-700), var(--teal-600));
+  }
+  .chat-bubble-ai {
+    @apply glass-card rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm max-w-[78%] me-auto;
+  }
+
+  /* --- Pomodoro ring --- */
+  .pomodoro-ring {
+    filter: drop-shadow(0 0 16px rgba(45,122,132,0.45));
+  }
+  .dark .pomodoro-ring {
+    filter: drop-shadow(0 0 22px rgba(62,154,166,0.6));
+  }
+
+  /* --- Teal noise texture overlay --- */
+  .teal-noise {
+    position: relative;
+    overflow: hidden;
+  }
+  .teal-noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.06;
+    pointer-events: none;
+  }
+
+  /* --- Input focus ring teal --- */
+  input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--primary)/0.4);
+    border-color: hsl(var(--primary));
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .animation-delay-100 { animation-delay: 100ms; }
+  .animation-delay-200 { animation-delay: 200ms; }
+  .animation-delay-300 { animation-delay: 300ms; }
+  .animation-delay-500 { animation-delay: 500ms; }
+
+  /* RTL-aware margin/padding helpers */
+  [dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+}
+
+/* --- Keyframes --- */
+@keyframes pulse-teal {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45,122,132,0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(45,122,132,0); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-pulse-teal { animation: pulse-teal 2s infinite; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, hsl(var(--muted)) 50%, transparent 100%);
+  background-size: 200% auto;
+  animation: shimmer 1.5s linear infinite;
+}
