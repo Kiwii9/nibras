@@ -2,6 +2,8 @@ import { motion } from 'framer-motion'
 import { Menu, Sun, Moon, Languages } from 'lucide-react'
 import { useStore } from '@/store'
 import { useT } from '@/hooks/useT'
+import { AmbientNoise } from '@/components/ambient/AmbientNoise'
+import { isEnabled } from '@/lib/features'
 import { cn } from '@/lib/utils'
 
 interface TopbarProps {
@@ -44,6 +46,8 @@ export function Topbar({ onMenuOpen, pageTitle }: TopbarProps) {
 
       {/* Right: controls */}
       <div className="flex items-center gap-1.5">
+        {isEnabled('ambientNoise') && <AmbientNoise />}
+
         {/* Language toggle */}
         <motion.button
           whileTap={{ scale: 0.92 }}

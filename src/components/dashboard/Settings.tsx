@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Key, Globe, Palette, Cpu, CheckCircle, Eye, EyeOff, ExternalLink, Sun, Moon, Coffee } from 'lucide-react'
+import { Key, Globe, Palette, Cpu, CheckCircle, Eye, EyeOff, ExternalLink, Sun, Moon, Coffee, Server, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useStore, ApiConfig } from '@/store'
 import { useT } from '@/hooks/useT'
 import { cn } from '@/lib/utils'
 
 const FREE_MODELS = [
-  { provider: 'openrouter', model: 'meta-llama/llama-3.1-8b-instruct:free', label: 'Llama 3.1 8B (Free · OpenRouter)', url: 'https://openrouter.ai/keys' },
+  { provider: 'openrouter', model: 'openrouter/free', label: 'OpenRouter Free Router', url: 'https://openrouter.ai/keys' },
   { provider: 'openrouter', model: 'google/gemma-2-9b-it:free', label: 'Gemma 2 9B (Free · OpenRouter)', url: 'https://openrouter.ai/keys' },
   { provider: 'openrouter', model: 'qwen/qwen-2.5-7b-instruct:free', label: 'Qwen 2.5 7B (Free · OpenRouter)', url: 'https://openrouter.ai/keys' },
   { provider: 'openrouter', model: 'deepseek/deepseek-r1:free', label: 'DeepSeek R1 (Free · OpenRouter)', url: 'https://openrouter.ai/keys' },
@@ -38,6 +38,7 @@ export function SettingsPage() {
   const [config, setConfig] = useState<ApiConfig>({ ...apiConfig })
   const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
+  const usesCustomKey = config.useCustomKey ?? false
 
   const save = () => {
     setApiConfig(config)
@@ -157,7 +158,7 @@ export function SettingsPage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">{t('modelName')}</label>
             <input value={config.model} onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
-              placeholder="e.g. mistralai/mistral-7b-instruct:free" dir="ltr"
+              placeholder="e.g. openrouter/free" dir="ltr"
               className="w-full px-3 py-2.5 text-sm rounded-xl bg-muted border border-border" />
           </div>
         </div>

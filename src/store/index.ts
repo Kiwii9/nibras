@@ -27,6 +27,14 @@ export interface UploadedFile {
   content?: string
   driveFileId?: string
   source: 'gdrive'
+  folderId?: string | null
+}
+
+export interface ResourceFolder {
+  id: string
+  name: string
+  color: string
+  createdAt: string
 }
 
 export interface Message {
@@ -98,6 +106,7 @@ export interface ApiConfig {
   provider: 'openai' | 'gemini' | 'openrouter' | 'claude'
   apiKey: string
   model: string
+  useCustomKey: boolean  // false = use platform key, true = use user's own key
 }
 
 export interface StudyPlanItem {
@@ -148,8 +157,13 @@ interface NibrasState {
   setApiConfig: (c: ApiConfig) => void
 
   files: UploadedFile[]
+  resourceFolders: ResourceFolder[]
   addFile: (f: UploadedFile) => void
   removeFile: (id: string) => void
+  addResourceFolder: (folder: ResourceFolder) => void
+  renameResourceFolder: (id: string, name: string) => void
+  deleteResourceFolder: (id: string) => void
+  moveFileToFolder: (fileId: string, folderId: string | null) => void
 
   chatSessions: ChatSession[]
   activeChatId: string | null
@@ -177,6 +191,10 @@ interface NibrasState {
 
   pomodoroSettings: PomodoroSettings
   setPomodoroSettings: (s: PomodoroSettings) => void
+  dailyMessageCount: number
+  incrementMessageCount: () => void
+  resetMessageCount: () => void
+  lastMessageDate: string
 }
 
 export const useStore = create<NibrasState>()(
@@ -236,7 +254,7 @@ export const useStore = create<NibrasState>()(
 
       logout: () => set({
         currentUserId: null, isAuthenticated: false, authError: '',
-        files: [], chatSessions: [], quizSessions: [], exams: [], studyPlan: [],
+        files: [], resourceFolders: [{ id: 'folder-general', name: 'General / عام', color: '#2D7A84', createdAt: new Date().toISOString() }], chatSessions: [], quizSessions: [], exams: [], studyPlan: [],
         activeChatId: null, activeQuizId: null,
       }),
 
@@ -256,14 +274,28 @@ export const useStore = create<NibrasState>()(
 
       lang: 'ar',
       theme: 'dark',
-      apiConfig: { provider: 'openrouter', apiKey: '', model: 'meta-llama/llama-3.1-8b-instruct:free' },
+      apiConfig: { provider: 'openrouter', apiKey: '', model: 'openrouter/free', useCustomKey: false },
       setLang: (lang) => set({ lang }),
       setTheme: (theme) => set({ theme }),
       setApiConfig: (apiConfig) => set({ apiConfig }),
 
       files: [],
-      addFile: (f) => set((s) => ({ files: [f, ...s.files] })),
+      resourceFolders: [
+        { id: 'folder-general', name: 'General / عام', color: '#2D7A84', createdAt: new Date().toISOString() },
+      ],
+      addFile: (f) => set((s) => ({ files: [{ ...f, folderId: f.folderId ?? null }, ...s.files] })),
       removeFile: (id) => set((s) => ({ files: s.files.filter((f) => f.id !== id) })),
+      addResourceFolder: (folder) => set((s) => ({ resourceFolders: [folder, ...s.resourceFolders] })),
+      renameResourceFolder: (id, name) => set((s) => ({
+        resourceFolders: s.resourceFolders.map(folder => folder.id === id ? { ...folder, name } : folder),
+      })),
+      deleteResourceFolder: (id) => set((s) => ({
+        resourceFolders: s.resourceFolders.filter(folder => folder.id !== id),
+        files: s.files.map(file => file.folderId === id ? { ...file, folderId: null } : file),
+      })),
+      moveFileToFolder: (fileId, folderId) => set((s) => ({
+        files: s.files.map(file => file.id === fileId ? { ...file, folderId } : file),
+      })),
 
       chatSessions: [],
       activeChatId: null,
@@ -299,6 +331,14 @@ export const useStore = create<NibrasState>()(
 
       pomodoroSettings: { workMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, sessionsBeforeLongBreak: 4 },
       setPomodoroSettings: (pomodoroSettings) => set({ pomodoroSettings }),
+      dailyMessageCount: 0,
+      lastMessageDate: '',
+      incrementMessageCount: () => set((s) => {
+        const today = new Date().toDateString()
+        const count = s.lastMessageDate === today ? s.dailyMessageCount + 1 : 1
+        return { dailyMessageCount: count, lastMessageDate: today }
+      }),
+      resetMessageCount: () => set({ dailyMessageCount: 0, lastMessageDate: '' }),
     }),
     { name: 'nibras-v2' }
   )
@@ -307,4 +347,10 @@ export const useStore = create<NibrasState>()(
 export const useCurrentUser = () => {
   const { users, currentUserId } = useStore()
   return users.find(u => u.id === currentUserId) ?? null
+}
+
+export const useIsAdmin = () => {
+  const user = useCurrentUser()
+  // Admin email check — expand as needed
+  return user?.email === 'm3647807@gmail.com'
 }

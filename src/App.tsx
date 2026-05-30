@@ -14,9 +14,12 @@ import { DriveUploader } from '@/components/drive/DriveUploader'
 import { SettingsPage } from '@/components/dashboard/Settings'
 import { RoadmapPage } from '@/components/roadmap/Roadmap'
 import { AboutPage } from '@/components/about/About'
+import { AdminPanel } from '@/components/admin/AdminPanel'
+import { ParticleBg } from '@/components/ambient/ParticleBg'
 import { useT } from '@/hooks/useT'
+import { isEnabled } from '@/lib/features'
 
-type PageKey = 'dashboard'|'chat'|'quiz'|'exams'|'pomodoro'|'resources'|'roadmap'|'about'|'settings'
+type PageKey = 'dashboard'|'chat'|'quiz'|'exams'|'pomodoro'|'resources'|'roadmap'|'about'|'settings'|'admin'
 
 const PAGE_TITLES: Record<string, PageKey> = {
   '/':          'dashboard',
@@ -28,20 +31,17 @@ const PAGE_TITLES: Record<string, PageKey> = {
   '/roadmap':   'roadmap',
   '/about':     'about',
   '/settings':  'settings',
+  '/admin':     'admin',
 }
 
 function PageWrapper({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   return (
     <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -6 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="flex-1 overflow-y-auto"
-      >
+      <motion.div key={location.pathname}
+        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="flex-1 overflow-y-auto relative z-10">
         {children}
       </motion.div>
     </AnimatePresence>
@@ -55,9 +55,10 @@ function AppLayout() {
   const pageKey = PAGE_TITLES[location.pathname] ?? 'dashboard'
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background relative">
+      {isEnabled('animatedBg') && <ParticleBg />}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative z-10">
         <Topbar onMenuOpen={() => setSidebarOpen(true)} pageTitle={t(pageKey)} />
         <PageWrapper>
           <Routes>
@@ -70,6 +71,7 @@ function AppLayout() {
             <Route path="/roadmap"   element={<RoadmapPage />} />
             <Route path="/about"     element={<AboutPage />} />
             <Route path="/settings"  element={<SettingsPage />} />
+            <Route path="/admin"     element={<AdminPanel />} />
             <Route path="*"          element={<Dashboard />} />
           </Routes>
         </PageWrapper>
@@ -85,8 +87,6 @@ function ThemeDirectionProvider({ children }: { children: React.ReactNode }) {
     html.classList.toggle('dark', theme === 'dark')
     html.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
     html.setAttribute('lang', lang)
-    const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0B2428' : '#f0f9fa')
   }, [theme, lang])
   return <>{children}</>
 }

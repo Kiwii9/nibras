@@ -263,3 +263,70 @@
   background-size: 200% auto;
   animation: shimmer 1.5s linear infinite;
 }
+.markdown-chat {
+  line-height: 1.9;
+}
+
+.markdown-chat h1,
+.markdown-chat h2,
+.markdown-chat h3 {
+  font-weight: 700;
+  margin: 0.9rem 0 0.45rem;
+}
+
+.markdown-chat h1 {
+  font-size: 1.25rem;
+}
+
+.markdown-chat h2 {
+  font-size: 1.1rem;
+}
+
+.markdown-chat h3 {
+  font-size: 1rem;
+}
+
+.markdown-chat p {
+  margin: 0.45rem 0;
+}
+
+.markdown-chat ul,
+.markdown-chat ol {
+  margin: 0.5rem 0;
+  padding-inline-start: 1.4rem;
+}
+
+.markdown-chat li {
+  margin: 0.25rem 0;
+}
+
+.markdown-chat strong {
+  font-weight: 700;
+}
+
+.markdown-chat code {
+  font-size: 0.85em;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.markdown-chat pre {
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  margin: 0.65rem 0;
+}
+
+.markdown-chat table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.65rem 0;
+}
+
+.markdown-chat th,
+.markdown-chat td {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.4rem;
+}

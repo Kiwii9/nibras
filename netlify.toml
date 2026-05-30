@@ -1,11 +1,13 @@
 [build]
-  command = "pnpm build"
+  command = "npm run build"
   publish = "dist"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
+
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+  port = 9999
+  autoLaunch = false

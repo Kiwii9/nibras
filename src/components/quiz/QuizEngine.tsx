@@ -73,7 +73,6 @@ function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
   const generate = async () => {
     const source = files.find(f => f.id === fileId)?.name || topic
     if (!source.trim()) { setError('Please select a file or enter a topic.'); return }
-    if (!apiConfig.apiKey) { setError(t('apiKeyRequired')); return }
     setLoading(true); setError('')
     try {
       const questions = await generateQuizQuestions(source, format, count, apiConfig, lang)
