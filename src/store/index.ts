@@ -1,14 +1,17 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { Session, User as SupabaseAuthUser } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
 export type Lang = 'ar' | 'en'
 export type Theme = 'dark' | 'light'
+export type UserRole = 'student' | 'admin' | 'developer'
 
 export interface User {
   id: string
   name: string
   email: string
-  passwordHash: string
+  role: UserRole
   createdAt: string
   avatar: string
   studyStreak: number
@@ -103,7 +106,7 @@ export interface PomodoroSettings {
 }
 
 export interface ApiConfig {
-  provider: 'openai' | 'gemini' | 'openrouter' | 'claude'
+  provider: 'openai' | 'gemini' | 'openrouter' | 'claude' | 'groq'
   apiKey: string
   model: string
   useCustomKey: boolean  // false = use platform key, true = use user's own key
@@ -118,13 +121,78 @@ export interface StudyPlanItem {
   createdAt: string
 }
 
-function simpleHash(str: string): string {
+interface ProfileRow {
+  id: string
+  email: string
+  full_name: string | null
+  role: UserRole
+  created_at: string
+}
+
+const avatarColors = ['#2D7A84','#C9A84C','#4A90D9','#7C5CBF','#56A86B','#E05555']
+
+function pickAvatar(id: string) {
   let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
+  for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0
+  return avatarColors[Math.abs(hash) % avatarColors.length]
+}
+
+function getAuthErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const lower = message.toLowerCase()
+
+  if (lower.includes('invalid login credentials')) return 'البريد أو كلمة المرور غير صحيحة · Invalid email or password.'
+  if (lower.includes('email not confirmed')) return 'يرجى تأكيد البريد الإلكتروني أولاً · Please confirm your email first.'
+  if (lower.includes('user already registered')) return 'هذا البريد الإلكتروني مسجّل مسبقاً · Email already registered.'
+  if (lower.includes('password')) return 'تأكد من كلمة المرور وحاول مرة أخرى · Check the password and try again.'
+
+  return `تعذر تسجيل الدخول · ${message}`
+}
+
+async function fetchOrCreateProfile(authUser: SupabaseAuthUser): Promise<ProfileRow> {
+  const email = authUser.email?.toLowerCase() ?? ''
+  const fullName =
+    typeof authUser.user_metadata?.full_name === 'string' ? authUser.user_metadata.full_name
+    : typeof authUser.user_metadata?.name === 'string' ? authUser.user_metadata.name
+    : email.split('@')[0]
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role, created_at')
+    .eq('id', authUser.id)
+    .maybeSingle()
+
+  if (error) throw error
+  if (data) return data as ProfileRow
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('profiles')
+    .insert({ id: authUser.id, email, full_name: fullName, role: 'student' })
+    .select('id, email, full_name, role, created_at')
+    .single()
+
+  if (insertError) throw insertError
+  return inserted as ProfileRow
+}
+
+function mapProfileToUser(profile: ProfileRow, authUser: SupabaseAuthUser): User {
+  const today = new Date().toDateString()
+  const email = profile.email || authUser.email || ''
+  const name = profile.full_name?.trim() || authUser.user_metadata?.full_name || authUser.user_metadata?.name || email.split('@')[0] || 'Student'
+
+  return {
+    id: authUser.id,
+    name,
+    email,
+    role: profile.role || 'student',
+    createdAt: profile.created_at || authUser.created_at || new Date().toISOString(),
+    avatar: pickAvatar(authUser.id),
+    studyStreak: 1,
+    lastActiveDate: today,
+    totalStudyMinutes: 0,
+    level: 1,
+    xp: 0,
   }
-  return Math.abs(hash).toString(36)
 }
 
 export function getLevelFromXP(xp: number) {
@@ -142,10 +210,13 @@ interface NibrasState {
   users: User[]
   currentUserId: string | null
   isAuthenticated: boolean
+  authReady: boolean
   authError: string
-  register: (name: string, email: string, password: string) => boolean
-  login: (email: string, password: string) => boolean
-  logout: () => void
+  authNotice: string
+  initializeAuth: () => () => void
+  register: (name: string, email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<boolean>
+  logout: () => Promise<void>
   updateUserProgress: (xpGain: number, minutesGain?: number) => void
   clearAuthError: () => void
 
@@ -197,66 +268,112 @@ interface NibrasState {
   lastMessageDate: string
 }
 
+async function syncSessionToStore(session: Session | null, set: (partial: Partial<NibrasState> | ((state: NibrasState) => Partial<NibrasState>)) => void) {
+  if (!session?.user) {
+    set({ users: [], currentUserId: null, isAuthenticated: false, authReady: true })
+    return
+  }
+
+  try {
+    const profile = await fetchOrCreateProfile(session.user)
+    const currentUser = mapProfileToUser(profile, session.user)
+    set({ users: [currentUser], currentUserId: currentUser.id, isAuthenticated: true, authReady: true, authError: '', authNotice: '' })
+  } catch (error) {
+    set({ users: [], currentUserId: null, isAuthenticated: false, authReady: true, authError: getAuthErrorMessage(error) })
+  }
+}
+
 export const useStore = create<NibrasState>()(
   persist(
     (set, get) => ({
       users: [],
       currentUserId: null,
       isAuthenticated: false,
+      authReady: false,
       authError: '',
+      authNotice: '',
 
-      register: (name, email, password) => {
-        const { users } = get()
-        if (!name.trim()) { set({ authError: 'Please enter your name.' }); return false }
-        if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-          set({ authError: 'هذا البريد الإلكتروني مسجّل مسبقاً · Email already registered.' })
-          return false
+      initializeAuth: () => {
+        let cancelled = false
+
+        supabase.auth.getSession()
+          .then(({ data }) => { if (!cancelled) void syncSessionToStore(data.session, set) })
+          .catch((error) => {
+            if (!cancelled) set({ authReady: true, authError: getAuthErrorMessage(error) })
+          })
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (!cancelled) void syncSessionToStore(session, set)
+        })
+
+        return () => {
+          cancelled = true
+          subscription.unsubscribe()
         }
+      },
+
+      register: async (name, email, password) => {
+        set({ authError: '', authNotice: '' })
+        const cleanName = name.trim()
+        const cleanEmail = email.toLowerCase().trim()
+
+        if (!cleanName) { set({ authError: 'Please enter your name.' }); return false }
+        if (!cleanEmail) { set({ authError: 'Please enter your email.' }); return false }
         if (password.length < 6) {
           set({ authError: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل · Password min 6 chars.' })
           return false
         }
-        const colors = ['#2D7A84','#C9A84C','#4A90D9','#7C5CBF','#56A86B','#E05555']
-        const newUser: User = {
-          id: `user-${Date.now()}`,
-          name: name.trim(),
-          email: email.toLowerCase().trim(),
-          passwordHash: simpleHash(password),
-          createdAt: new Date().toISOString(),
-          avatar: colors[Math.floor(Math.random() * colors.length)],
-          studyStreak: 1,
-          lastActiveDate: new Date().toDateString(),
-          totalStudyMinutes: 0,
-          level: 1,
-          xp: 0,
+
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: {
+              data: { full_name: cleanName, name: cleanName },
+              emailRedirectTo: window.location.origin,
+            },
+          })
+          if (error) throw error
+
+          if (data.session) {
+            await syncSessionToStore(data.session, set)
+          } else {
+            set({
+              authNotice: 'تم إنشاء الحساب. إذا كان تأكيد البريد مفعّلاً، افتح بريدك واضغط رابط التأكيد · Account created. If email confirmation is enabled, check your inbox.',
+              authError: '',
+            })
+          }
+          return true
+        } catch (error) {
+          set({ authError: getAuthErrorMessage(error) })
+          return false
         }
-        set({ users: [...users, newUser], currentUserId: newUser.id, isAuthenticated: true, authError: '' })
-        return true
       },
 
-      login: (email, password) => {
-        const { users } = get()
-        const user = users.find(u => u.email === email.toLowerCase().trim())
-        if (!user) { set({ authError: 'لا يوجد حساب بهذا البريد · No account found.' }); return false }
-        if (user.passwordHash !== simpleHash(password)) { set({ authError: 'كلمة المرور غير صحيحة · Wrong password.' }); return false }
-        const today = new Date().toDateString()
-        const yesterday = new Date(Date.now() - 86400000).toDateString()
-        const streak = user.lastActiveDate === yesterday ? user.studyStreak + 1
-          : user.lastActiveDate === today ? user.studyStreak : 1
-        set(st => ({
-          users: st.users.map(u => u.id === user.id ? { ...u, studyStreak: streak, lastActiveDate: today } : u),
-          currentUserId: user.id,
-          isAuthenticated: true,
-          authError: '',
-        }))
-        return true
+      login: async (email, password) => {
+        set({ authError: '', authNotice: '' })
+        const cleanEmail = email.toLowerCase().trim()
+        if (!cleanEmail || !password) { set({ authError: 'أدخل البريد وكلمة المرور · Enter email and password.' }); return false }
+
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
+          if (error) throw error
+          await syncSessionToStore(data.session, set)
+          return true
+        } catch (error) {
+          set({ authError: getAuthErrorMessage(error) })
+          return false
+        }
       },
 
-      logout: () => set({
-        currentUserId: null, isAuthenticated: false, authError: '',
-        files: [], resourceFolders: [{ id: 'folder-general', name: 'General / عام', color: '#2D7A84', createdAt: new Date().toISOString() }], chatSessions: [], quizSessions: [], exams: [], studyPlan: [],
-        activeChatId: null, activeQuizId: null,
-      }),
+      logout: async () => {
+        await supabase.auth.signOut()
+        set({
+          users: [], currentUserId: null, isAuthenticated: false, authError: '', authNotice: '',
+          files: [], resourceFolders: [{ id: 'folder-general', name: 'General / عام', color: '#2D7A84', createdAt: new Date().toISOString() }], chatSessions: [], quizSessions: [], exams: [], studyPlan: [],
+          activeChatId: null, activeQuizId: null,
+        })
+      },
 
       updateUserProgress: (xpGain, minutesGain = 0) => {
         const { currentUserId, users } = get()
@@ -270,7 +387,7 @@ export const useStore = create<NibrasState>()(
         })
       },
 
-      clearAuthError: () => set({ authError: '' }),
+      clearAuthError: () => set({ authError: '', authNotice: '' }),
 
       lang: 'ar',
       theme: 'dark',
@@ -340,7 +457,25 @@ export const useStore = create<NibrasState>()(
       }),
       resetMessageCount: () => set({ dailyMessageCount: 0, lastMessageDate: '' }),
     }),
-    { name: 'nibras-v2' }
+    {
+      name: 'nibras-v3',
+      partialize: (state) => ({
+        lang: state.lang,
+        theme: state.theme,
+        apiConfig: state.apiConfig,
+        files: state.files,
+        resourceFolders: state.resourceFolders,
+        chatSessions: state.chatSessions,
+        activeChatId: state.activeChatId,
+        quizSessions: state.quizSessions,
+        activeQuizId: state.activeQuizId,
+        exams: state.exams,
+        studyPlan: state.studyPlan,
+        pomodoroSettings: state.pomodoroSettings,
+        dailyMessageCount: state.dailyMessageCount,
+        lastMessageDate: state.lastMessageDate,
+      }),
+    }
   )
 )
 
@@ -351,6 +486,10 @@ export const useCurrentUser = () => {
 
 export const useIsAdmin = () => {
   const user = useCurrentUser()
-  // Admin email check — expand as needed
-  return user?.email === 'm3647807@gmail.com'
+  return user?.role === 'admin' || user?.role === 'developer'
+}
+
+export const useIsDeveloper = () => {
+  const user = useCurrentUser()
+  return user?.role === 'developer'
 }
