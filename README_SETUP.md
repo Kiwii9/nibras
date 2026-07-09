@@ -15,9 +15,9 @@ npm install
 ```env
 # Public frontend variables
 VITE_SUPABASE_URL=https://syhypibwebtfqzqlvrlh.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_publishable_key_here
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_UFhOSNGSCXco0waw_D9o9g_EXtbYXim
 VITE_SUPABASE_ANON_KEY=your_legacy_anon_key_if_needed
-VITE_ADMIN_EMAILS=your_email@example.com
+VITE_ADMIN_EMAILS=Mohammed.Ali.H1@outlook.sa
 
 # Server-only Netlify Function variables
 AI_PROVIDER=openrouter
@@ -77,7 +77,7 @@ Required Netlify environment variables for Supabase Auth:
 
 ```env
 VITE_SUPABASE_URL=https://syhypibwebtfqzqlvrlh.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_publishable_key_here
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_UFhOSNGSCXco0waw_D9o9g_EXtbYXim
 ```
 
 Required Netlify environment variables for the AI proxy:
@@ -112,6 +112,7 @@ Current behavior:
 - `signUp` creates an auth user through Supabase.
 - The database trigger creates a matching row in `public.profiles`.
 - New users receive the default role `student`.
+- Mohammed's email, `Mohammed.Ali.H1@outlook.sa`, is in `private.admin_allowlist` and is automatically promoted to `developer` when that account signs up.
 - Admin/developer access is based on `public.profiles.role`, not a hardcoded frontend email.
 - `useCurrentUser()` still returns the shape expected by the existing UI so dashboard/sidebar code remains compatible.
 
@@ -135,6 +136,7 @@ Without this redirect, direct links such as `/quiz`, `/chat`, or `/admin` may re
 - Supabase Auth is now used for real email/password auth.
 - RLS is enabled on all public user-data tables.
 - User roles live in `public.profiles.role` with `student`, `admin`, and `developer` values.
+- Security-definer role helpers live in the private schema instead of the exposed public schema.
 - The AI key stays in the Netlify Function and is never exposed in frontend code.
 - The Netlify Function has basic prompt-size, output-token, and per-IP daily limits.
 - The current in-memory IP limit is a cheap launch guard. It can reset between function instances and should be replaced by Supabase-backed usage logs for a wider launch.
