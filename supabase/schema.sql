@@ -86,16 +86,23 @@ alter table public.generated_quizzes enable row level security;
 alter table public.ai_usage_logs enable row level security;
 alter table public.bug_reports enable row level security;
 
-create or replace function public.is_admin()
+-- Private schema is intentionally not exposed through the Supabase Data API.
+-- Keep security-definer helpers here, not in public.
+create schema if not exists private;
+revoke all on schema private from public;
+
+create or replace function private.is_admin()
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
-    select 1 from public.profiles
-    where id = (select auth.uid()) and role in ('admin', 'developer')
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and role in ('admin', 'developer')
   );
 $$;
 
@@ -123,13 +130,15 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
--- Security-definer helpers should not be directly callable through RPC.
+-- The signup trigger must exist in public for auth.users to call it, but it should
+-- not be directly callable through the public REST/RPC API.
 revoke execute on function public.handle_new_user() from anon, authenticated, public;
-revoke execute on function public.is_admin() from anon, authenticated, public;
+
+drop function if exists public.is_admin();
 
 create policy "profiles_select_own_or_admin"
 on public.profiles for select
-using ((select auth.uid()) = id or (select public.is_admin()));
+using ((select auth.uid()) = id or (select private.is_admin()));
 
 create policy "profiles_insert_own"
 on public.profiles for insert
@@ -137,9 +146,9 @@ with check ((select auth.uid()) = id);
 
 create policy "profiles_update_own_or_admin"
 on public.profiles for update
-using ((select auth.uid()) = id or (select public.is_admin()))
+using ((select auth.uid()) = id or (select private.is_admin()))
 with check (
-  (select public.is_admin())
+  (select private.is_admin())
   or ((select auth.uid()) = id and role = (select p.role from public.profiles p where p.id = (select auth.uid())))
 );
 
@@ -160,7 +169,7 @@ with check ((select auth.uid()) = user_id);
 
 create policy "usage_select_own_or_admin"
 on public.ai_usage_logs for select
-using ((select auth.uid()) = user_id or (select public.is_admin()));
+using ((select auth.uid()) = user_id or (select private.is_admin()));
 
 create policy "usage_insert_own_or_anonymous"
 on public.ai_usage_logs for insert
@@ -172,9 +181,9 @@ with check ((select auth.uid()) = user_id or user_id is null);
 
 create policy "bug_reports_select_own_or_admin"
 on public.bug_reports for select
-using ((select auth.uid()) = user_id or (select public.is_admin()));
+using ((select auth.uid()) = user_id or (select private.is_admin()));
 
 create policy "admins_update_bug_reports"
 on public.bug_reports for update
-using ((select public.is_admin()))
-with check ((select public.is_admin()));
+using ((select private.is_admin()))
+with check ((select private.is_admin()));
