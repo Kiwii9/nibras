@@ -87,9 +87,19 @@ alter table public.ai_usage_logs enable row level security;
 alter table public.bug_reports enable row level security;
 
 -- Private schema is intentionally not exposed through the Supabase Data API.
--- Keep security-definer helpers here, not in public.
+-- Keep security-definer helpers and bootstrap allowlists here, not in public.
 create schema if not exists private;
 revoke all on schema private from public;
+
+create table if not exists private.admin_allowlist (
+  email text primary key,
+  role text not null check (role in ('admin', 'developer')),
+  created_at timestamptz not null default now()
+);
+
+insert into private.admin_allowlist (email, role)
+values (lower('Mohammed.Ali.H1@outlook.sa'), 'developer')
+on conflict (email) do update set role = excluded.role;
 
 create or replace function private.is_admin()
 returns boolean
@@ -110,17 +120,32 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, private
 as $$
+declare
+  assigned_role text := 'student';
 begin
+  select a.role into assigned_role
+  from private.admin_allowlist a
+  where a.email = lower(coalesce(new.email, ''))
+  limit 1;
+
   insert into public.profiles (id, email, full_name, role)
   values (
     new.id,
     coalesce(new.email, ''),
     coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name'),
-    'student'
+    coalesce(assigned_role, 'student')
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set
+    email = excluded.email,
+    full_name = coalesce(public.profiles.full_name, excluded.full_name),
+    role = case
+      when lower(excluded.email) in (select email from private.admin_allowlist) then excluded.role
+      else public.profiles.role
+    end,
+    updated_at = now();
+
   return new;
 end;
 $$;
