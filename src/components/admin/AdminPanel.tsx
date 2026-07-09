@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Shield, Zap, Bug, ToggleLeft, ToggleRight, FlaskConical,
-  Terminal, AlertTriangle, CheckCircle, Cpu, Clock, RefreshCw, Send
+  Terminal, AlertTriangle, Cpu, RefreshCw, Send
 } from 'lucide-react'
-import { useStore, useCurrentUser } from '@/store'
-import { useIsAdmin } from '@/store'
+import { useStore, useCurrentUser, useIsAdmin } from '@/store'
 import { FEATURE_FLAGS, getFlags, setFlag } from '@/lib/features'
 import { callLLM } from '@/lib/ai'
 import { cn } from '@/lib/utils'
-import { useT } from '@/hooks/useT'
+
+type AdminTab = 'flags' | 'prompt' | 'mock' | 'logs'
 
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -24,10 +24,9 @@ export function AdminPanel() {
   const isAdmin = useIsAdmin()
   const currentUser = useCurrentUser()
   const { lang, apiConfig } = useStore()
-  const { t } = useT()
   const isAr = lang === 'ar'
   const [flags, setFlags] = useState(getFlags())
-  const [activeTab, setActiveTab] = useState<'flags' | 'prompt' | 'mock' | 'logs'>('flags')
+  const [activeTab, setActiveTab] = useState<AdminTab>('flags')
 
   // Prompt tester
   const [testPrompt, setTestPrompt] = useState('')
@@ -49,7 +48,7 @@ export function AdminPanel() {
       <div className="section-wrapper flex flex-col items-center justify-center min-h-96 text-center space-y-4">
         <Shield className="w-16 h-16 text-muted-foreground/30" />
         <h2 className="font-display text-2xl text-muted-foreground">{isAr ? 'غير مصرح' : 'Access Denied'}</h2>
-        <p className="text-sm text-muted-foreground">{isAr ? 'هذه الصفحة للمطوّرين فقط' : 'This page is for admins only'}</p>
+        <p className="text-sm text-muted-foreground">{isAr ? 'هذه الصفحة للإدارة والمطورين فقط' : 'This page is for admins and developers only'}</p>
       </div>
     )
   }
@@ -93,12 +92,17 @@ export function AdminPanel() {
     }
   }
 
-  const TABS = [
+  const TABS: { id: AdminTab; icon: typeof ToggleRight; labelAr: string; labelEn: string }[] = [
     { id: 'flags',  icon: ToggleRight, labelAr: 'الميزات',   labelEn: 'Feature Flags' },
     { id: 'prompt', icon: Terminal,    labelAr: 'اختبار Prompt', labelEn: 'Prompt Tester' },
     { id: 'mock',   icon: FlaskConical, labelAr: 'المحاكاة',  labelEn: 'Mock / Simulate' },
     { id: 'logs',   icon: Bug,         labelAr: 'السجلات',   labelEn: 'Debug Logs' },
   ]
+
+  const roleLabel = currentUser?.role ?? 'student'
+  const modeLabel = roleLabel === 'developer'
+    ? (isAr ? 'وضع المطور' : 'Developer Mode')
+    : (isAr ? 'وضع الإدارة' : 'Admin Mode')
 
   return (
     <div className="section-wrapper space-y-6 max-w-3xl">
@@ -109,25 +113,25 @@ export function AdminPanel() {
         </div>
         <div>
           <h1 className="font-display text-2xl">{isAr ? 'لوحة الإدارة' : 'Admin Panel'}</h1>
-          <p className="text-xs text-muted-foreground">{isAr ? `مرحباً ${currentUser?.name} — وضع التطوير` : `Welcome ${currentUser?.name} — Developer Mode`}</p>
+          <p className="text-xs text-muted-foreground">{isAr ? `مرحباً ${currentUser?.name} — ${modeLabel}` : `Welcome ${currentUser?.name} — ${modeLabel}`}</p>
         </div>
         <div className="ms-auto flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-xs text-amber-400 font-medium">Admin Only</span>
+          <span className="text-xs text-amber-400 font-medium">{roleLabel}</span>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <StatCard label={isAr ? 'الميزات المفعّلة' : 'Active Flags'} value={String(Object.values(flags).filter(Boolean).length)} color="#3E9AA6" />
-        <StatCard label={isAr ? 'المستخدم' : 'Role'} value={currentUser?.email === 'm3647807@gmail.com' ? 'admin' : 'user'} color="#C9A84C" />
+        <StatCard label={isAr ? 'الدور' : 'Role'} value={roleLabel} color="#C9A84C" />
         <StatCard label={isAr ? 'الأحداث' : 'Log Events'} value={String(logs.length)} color="#56A86B" />
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto">
         {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all',
               activeTab === tab.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
             <tab.icon className="w-3.5 h-3.5" />
