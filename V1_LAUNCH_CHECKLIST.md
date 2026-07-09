@@ -60,42 +60,45 @@ Developer tools should never be exposed as normal product features:
 - Last function error
 - Build/version info
 
-## Before inviting students
+## Foundation status
 
 ### Authentication
 
-- [ ] Replace local demo accounts with Supabase Auth.
-- [ ] Remove `passwordHash` from frontend state.
-- [ ] Store profiles in Supabase.
-- [ ] Add role field: `student`, `admin`, `developer`.
-- [ ] Protect admin/developer access with Supabase roles, not only frontend checks.
+- [x] Replace local demo accounts with Supabase Auth.
+- [x] Remove `passwordHash` from frontend state.
+- [x] Store profiles in Supabase.
+- [x] Add role field: `student`, `admin`, `developer`.
+- [x] Protect admin/developer access with Supabase roles instead of a hardcoded frontend email.
+- [ ] Test signup/login on the Netlify deployed preview.
+- [ ] Promote Mohammed's profile to `admin` or `developer` after creating the first real account.
 
 ### Database
 
-Create these tables first:
+Created in Supabase project `syhypibwebtfqzqlvrlh`:
 
-- [ ] `profiles`
-- [ ] `exams`
-- [ ] `study_materials`
-- [ ] `generated_quizzes`
-- [ ] `ai_usage_logs`
-- [ ] `bug_reports`
+- [x] `profiles`
+- [x] `exams`
+- [x] `study_materials`
+- [x] `generated_quizzes`
+- [x] `ai_usage_logs`
+- [x] `bug_reports`
 
 ### Supabase RLS
 
-- [ ] Enable RLS on every user-data table.
-- [ ] Students can only read/write their own records.
-- [ ] Admins can read operational logs and reports.
-- [ ] Never expose service role keys in frontend code.
+- [x] Enable RLS on every user-data table.
+- [x] Students can only read/write their own records.
+- [x] Admins can read operational logs and reports.
+- [x] Lock down security-definer helper functions from direct RPC execution.
+- [x] Never expose service role keys in frontend code.
 
 ### AI cost control
 
-- [ ] Keep provider keys inside Netlify Functions only.
+- [x] Keep provider keys inside Netlify Functions only.
+- [x] Limit prompt size.
+- [x] Limit output tokens.
+- [x] Add graceful error messages for rate limits.
+- [x] Add fallback provider support: OpenRouter, Groq, Gemini.
 - [ ] Add persistent per-user daily usage limits in Supabase.
-- [ ] Limit prompt size.
-- [ ] Limit output tokens.
-- [ ] Add graceful error messages for rate limits.
-- [ ] Add fallback provider support: OpenRouter, Groq, Gemini.
 
 Recommended beta limits:
 
@@ -114,7 +117,7 @@ Hide or de-emphasize these until the core flow is stable:
 - Advanced settings
 - Developer prompt tester
 - Too many visual effects
-- Any cloud-sync claim before Supabase sync is working
+- Any cloud-sync claim before Supabase persistence is fully working
 - Google Drive upload unless the real flow works reliably
 
 ## Harsh quality bar
