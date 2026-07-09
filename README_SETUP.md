@@ -14,8 +14,9 @@ npm install
 
 ```env
 # Public frontend variables
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=https://syhypibwebtfqzqlvrlh.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_publishable_key_here
+VITE_SUPABASE_ANON_KEY=your_legacy_anon_key_if_needed
 VITE_ADMIN_EMAILS=your_email@example.com
 
 # Server-only Netlify Function variables
@@ -72,7 +73,14 @@ Functions directory:
 netlify/functions
 ```
 
-Required Netlify environment variables for the current AI proxy:
+Required Netlify environment variables for Supabase Auth:
+
+```env
+VITE_SUPABASE_URL=https://syhypibwebtfqzqlvrlh.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_publishable_key_here
+```
+
+Required Netlify environment variables for the AI proxy:
 
 ```env
 AI_PROVIDER=openrouter
@@ -95,13 +103,19 @@ GEMINI_API_KEY=your_gemini_key_here
 GEMINI_MODEL=gemini-1.5-flash
 ```
 
-Supabase variables are required once production authentication and database sync are enabled:
+## Supabase Auth
 
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_ADMIN_EMAILS=your_email@example.com
-```
+The app now uses Supabase Auth for email/password signup and login.
+
+Current behavior:
+
+- `signUp` creates an auth user through Supabase.
+- The database trigger creates a matching row in `public.profiles`.
+- New users receive the default role `student`.
+- Admin/developer access is based on `public.profiles.role`, not a hardcoded frontend email.
+- `useCurrentUser()` still returns the shape expected by the existing UI so dashboard/sidebar code remains compatible.
+
+If email confirmations are enabled in Supabase, new users must confirm their email before they can sign in.
 
 ## Routing
 
@@ -118,10 +132,11 @@ Without this redirect, direct links such as `/quiz`, `/chat`, or `/admin` may re
 
 ## Current beta security status
 
+- Supabase Auth is now used for real email/password auth.
+- RLS is enabled on all public user-data tables.
+- User roles live in `public.profiles.role` with `student`, `admin`, and `developer` values.
 - The AI key stays in the Netlify Function and is never exposed in frontend code.
 - The Netlify Function has basic prompt-size, output-token, and per-IP daily limits.
-- The current local account system is for demo testing only. It is not production authentication.
-- Before inviting real students, replace local demo auth with Supabase Auth and store roles/usage in Supabase.
 - The current in-memory IP limit is a cheap launch guard. It can reset between function instances and should be replaced by Supabase-backed usage logs for a wider launch.
 
 ## Notes
