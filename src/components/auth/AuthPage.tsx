@@ -5,10 +5,10 @@ import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 
 const FEATURES = [
-  { icon: BrainCircuit, label: 'AI Quiz Engine', labelAr: 'محرك الاختبارات الذكي', color: '#3E9AA6' },
-  { icon: BookOpen, label: 'Study Chatbot', labelAr: 'المساعد الدراسي', color: '#C9A84C' },
-  { icon: CalendarCheck, label: 'Exam Tracker', labelAr: 'متتبع الامتحانات', color: '#56A86B' },
-  { icon: Timer, label: 'Pomodoro Timer', labelAr: 'مؤقت بومودورو', color: '#4A90D9' },
+  { icon: BrainCircuit, label: 'Quiz from notes', labelAr: 'اختبارات من المحاضرات', color: '#3E9AA6' },
+  { icon: BookOpen, label: 'Arabic tutor', labelAr: 'معلّم عربي مبسّط', color: '#C9A84C' },
+  { icon: CalendarCheck, label: 'Exam countdown', labelAr: 'عدّاد الاختبارات', color: '#56A86B' },
+  { icon: Timer, label: 'Focus sessions', labelAr: 'جلسات تركيز', color: '#4A90D9' },
 ]
 
 export function AuthPage() {
@@ -76,12 +76,12 @@ export function AuthPage() {
 
           <div className="mb-8">
             <h2 className="font-display text-4xl text-white mb-4 leading-tight">
-              {t('رفيقك الدراسي الذكي', 'Your Smart Academic Companion')}
+              {t('ذاكر بذكاء قبل الاختبار', 'Study smarter before the exam')}
             </h2>
             <p className="text-teal-200/70 text-sm leading-relaxed max-w-xs">
               {t(
-                'حوّل مواد دراستك إلى اختبارات وخطط وتقدّم حقيقي — مجاناً للأبد.',
-                'Transform your study materials into quizzes, plans, and real progress — free forever.'
+                'حوّل محاضراتك إلى ملخصات، أسئلة تدريبية، وفلاش كارد خلال دقائق.',
+                'Turn your lectures into summaries, practice questions, and flashcards in minutes.'
               )}
             </p>
           </div>
@@ -158,8 +158,8 @@ export function AuthPage() {
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {mode === 'login'
-                    ? t('سجّل الدخول لمتابعة رحلتك الدراسية', 'Sign in to continue your learning journey')
-                    : t('أنشئ حسابك المجاني الآن', 'Create your free account now')}
+                    ? t('ادخل لتكمل جلساتك الدراسية التجريبية', 'Sign in to continue your beta study sessions')
+                    : t('أنشئ حساباً تجريبياً لتجربة نِبْرَاس', 'Create a beta account to try Nibras')}
                 </p>
               </div>
 
@@ -237,11 +237,11 @@ export function AuthPage() {
                 </button>
               </p>
 
-              {/* Demo hint */}
-              <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground text-center border border-border/50">
+              {/* Beta hint */}
+              <div className="bg-amber-500/10 rounded-xl p-3 text-xs text-amber-500 text-center border border-amber-500/30 leading-relaxed">
                 {t(
-                  '💡 حساباتك محفوظة محلياً على جهازك · بدون خادم · مجاناً',
-                  '💡 Accounts stored locally · No server · 100% Free'
+                  'نسخة تجريبية: الحساب محفوظ على هذا الجهاز فقط حالياً. قبل دعوة الطلاب فعّل Supabase Auth.',
+                  'Beta: accounts are stored on this device only for now. Enable Supabase Auth before inviting students.'
                 )}
               </div>
             </motion.form>
