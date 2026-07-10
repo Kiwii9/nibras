@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Eye, EyeOff, Sparkles, UserPlus, LogIn, AlertCircle, BookOpen, BrainCircuit, Timer, CalendarCheck } from 'lucide-react'
+import { Eye, EyeOff, Sparkles, UserPlus, LogIn, AlertCircle, CheckCircle, BookOpen, BrainCircuit, Timer, CalendarCheck } from 'lucide-react'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 
 const FEATURES = [
-  { icon: BrainCircuit, label: 'AI Quiz Engine', labelAr: 'محرك الاختبارات الذكي', color: '#3E9AA6' },
-  { icon: BookOpen, label: 'Study Chatbot', labelAr: 'المساعد الدراسي', color: '#C9A84C' },
-  { icon: CalendarCheck, label: 'Exam Tracker', labelAr: 'متتبع الامتحانات', color: '#56A86B' },
-  { icon: Timer, label: 'Pomodoro Timer', labelAr: 'مؤقت بومودورو', color: '#4A90D9' },
+  { icon: BrainCircuit, label: 'Quiz from notes', labelAr: 'اختبارات من المحاضرات', color: '#3E9AA6' },
+  { icon: BookOpen, label: 'Arabic tutor', labelAr: 'معلّم عربي مبسّط', color: '#C9A84C' },
+  { icon: CalendarCheck, label: 'Exam countdown', labelAr: 'عدّاد الاختبارات', color: '#56A86B' },
+  { icon: Timer, label: 'Focus sessions', labelAr: 'جلسات تركيز', color: '#4A90D9' },
 ]
 
 export function AuthPage() {
-  const { register, login, authError, clearAuthError, lang, setLang, theme, setTheme } = useStore()
+  const { register, login, authError, authNotice, clearAuthError, lang, setLang, theme, setTheme } = useStore()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -27,13 +27,20 @@ export function AuthPage() {
     e.preventDefault()
     clearAuthError()
     setLoading(true)
-    await new Promise(r => setTimeout(r, 400))
-    if (mode === 'register') {
-      register(name, email, password)
-    } else {
-      login(email, password)
+    try {
+      if (mode === 'register') {
+        await register(name, email, password)
+      } else {
+        await login(email, password)
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
+  }
+
+  const switchMode = () => {
+    setMode(mode === 'login' ? 'register' : 'login')
+    clearAuthError()
   }
 
   return (
@@ -76,12 +83,12 @@ export function AuthPage() {
 
           <div className="mb-8">
             <h2 className="font-display text-4xl text-white mb-4 leading-tight">
-              {t('رفيقك الدراسي الذكي', 'Your Smart Academic Companion')}
+              {t('ذاكر بذكاء قبل الاختبار', 'Study smarter before the exam')}
             </h2>
             <p className="text-teal-200/70 text-sm leading-relaxed max-w-xs">
               {t(
-                'حوّل مواد دراستك إلى اختبارات وخطط وتقدّم حقيقي — مجاناً للأبد.',
-                'Transform your study materials into quizzes, plans, and real progress — free forever.'
+                'حوّل محاضراتك إلى ملخصات، أسئلة تدريبية، وفلاش كارد خلال دقائق.',
+                'Turn your lectures into summaries, practice questions, and flashcards in minutes.'
               )}
             </p>
           </div>
@@ -158,8 +165,8 @@ export function AuthPage() {
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {mode === 'login'
-                    ? t('سجّل الدخول لمتابعة رحلتك الدراسية', 'Sign in to continue your learning journey')
-                    : t('أنشئ حسابك المجاني الآن', 'Create your free account now')}
+                    ? t('ادخل لتكمل جلساتك الدراسية', 'Sign in to continue your study sessions')
+                    : t('أنشئ حسابك الآمن عبر Supabase', 'Create your secure Supabase account')}
                 </p>
               </div>
 
@@ -210,11 +217,22 @@ export function AuthPage() {
                 )}
               </AnimatePresence>
 
+              {/* Notice */}
+              <AnimatePresence>
+                {authNotice && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="flex items-start gap-2 bg-teal-500/10 border border-teal-500/30 text-teal-500 text-xs px-3 py-2.5 rounded-xl leading-relaxed">
+                    <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    {authNotice}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-70"
                 style={{ background: 'linear-gradient(135deg, #1A4D53, #2D7A84)' }}
               >
                 {loading ? (
@@ -231,17 +249,17 @@ export function AuthPage() {
                 {mode === 'login'
                   ? t('ليس لديك حساب؟ ', "Don't have an account? ")
                   : t('لديك حساب؟ ', 'Already have an account? ')}
-                <button type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); clearAuthError() }}
+                <button type="button" onClick={switchMode}
                   className="text-primary font-semibold hover:underline">
                   {mode === 'login' ? t('أنشئ حساباً', 'Register') : t('سجّل الدخول', 'Login')}
                 </button>
               </p>
 
-              {/* Demo hint */}
-              <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground text-center border border-border/50">
+              {/* Beta hint */}
+              <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground text-center border border-border/50 leading-relaxed">
                 {t(
-                  '💡 حساباتك محفوظة محلياً على جهازك · بدون خادم · مجاناً',
-                  '💡 Accounts stored locally · No server · 100% Free'
+                  'تسجيل الدخول الآن عبر Supabase Auth. استخدام الذكاء الاصطناعي قد يكون محدوداً يومياً أثناء النسخة التجريبية.',
+                  'Auth now runs through Supabase. AI usage may be limited daily during the beta.'
                 )}
               </div>
             </motion.form>

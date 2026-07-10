@@ -91,8 +91,32 @@ function ThemeDirectionProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+      <div className="text-center space-y-3">
+        <motion.div
+          className="w-12 h-12 rounded-2xl mx-auto flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}
+          animate={{ scale: [1, 1.05, 1], opacity: [0.85, 1, 0.85] }}
+          transition={{ duration: 1.2, repeat: Infinity }}
+        >
+          <span className="text-white font-display text-xl">ن</span>
+        </motion.div>
+        <p className="text-sm text-muted-foreground">جاري تجهيز نِبْرَاس...</p>
+      </div>
+    </div>
+  )
+}
+
 function AuthGate() {
   const isAuthenticated = useStore(s => s.isAuthenticated)
+  const authReady = useStore(s => s.authReady)
+  const initializeAuth = useStore(s => s.initializeAuth)
+
+  useEffect(() => initializeAuth(), [initializeAuth])
+
+  if (!authReady) return <AuthLoadingScreen />
   return isAuthenticated ? <AppLayout /> : <AuthPage />
 }
 

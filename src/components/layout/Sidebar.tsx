@@ -129,8 +129,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Footer */}
       <div className="p-3 border-t border-border/50 space-y-2">
         <div className="flex flex-wrap gap-1.5">
-          <span className="badge-gold text-[10px]">✦ 100% مجاني</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">Free Forever</span>
+          <span className="badge-gold text-[10px]">✦ نسخة تجريبية</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">AI limits apply</span>
         </div>
         <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors group">
