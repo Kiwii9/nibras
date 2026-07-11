@@ -146,10 +146,16 @@ export async function callLLM(
     let parsed: any = {}
     try { parsed = JSON.parse(text) } catch {}
 
+    const errorCode = String(parsed.error || '')
+    const message = String(parsed.message || '')
+
     if (res.status === 429) throw new Error('rate_limit')
     if (res.status === 401) throw new Error('invalid_key')
-    if (parsed.error === 'platform_key_missing') throw new Error('platform_key_missing')
-    throw new Error(parsed.message || `HTTP ${res.status}`)
+    if (errorCode === 'platform_key_missing') throw new Error('platform_key_missing')
+    if (res.status === 502 || errorCode.includes('provider') || errorCode.includes('openrouter') || errorCode.includes('gemini') || errorCode.includes('groq')) {
+      throw new Error(`provider_error:${message || 'The AI provider failed.'}`)
+    }
+    throw new Error(message || `HTTP ${res.status}`)
   }
 
   const data = await res.json()
