@@ -7,18 +7,18 @@ import { useStore } from '@/store'
 type SoundId = 'white' | 'rain' | 'bonfire' | 'forest' | 'cafe' | 'ocean' | 'wind'
 
 const SOUNDS: { id: SoundId; emoji: string; labelAr: string; labelEn: string }[] = [
-  { id: 'white',   emoji: '📻', labelAr: 'ضوضاء',     labelEn: 'White' },
-  { id: 'rain',    emoji: '🌧️', labelAr: 'مطر',       labelEn: 'Rain' },
-  { id: 'bonfire', emoji: '🔥', labelAr: 'نار',        labelEn: 'Bonfire' },
-  { id: 'forest',  emoji: '🌿', labelAr: 'غابة',       labelEn: 'Forest' },
-  { id: 'cafe',    emoji: '☕', labelAr: 'مقهى',       labelEn: 'Café' },
-  { id: 'ocean',   emoji: '🌊', labelAr: 'أمواج',      labelEn: 'Ocean' },
-  { id: 'wind',    emoji: '🍃', labelAr: 'نسيم',       labelEn: 'Wind' },
+  { id: 'white',   emoji: '📻', labelAr: 'ثابت',       labelEn: 'Static' },
+  { id: 'rain',    emoji: '🌧️', labelAr: 'مطر',        labelEn: 'Rain' },
+  { id: 'bonfire', emoji: '🔥', labelAr: 'نار',         labelEn: 'Bonfire' },
+  { id: 'forest',  emoji: '🌿', labelAr: 'غابة',        labelEn: 'Forest' },
+  { id: 'cafe',    emoji: '☕', labelAr: 'مقهى',        labelEn: 'Café' },
+  { id: 'ocean',   emoji: '🌊', labelAr: 'أمواج',       labelEn: 'Ocean' },
+  { id: 'wind',    emoji: '🍃', labelAr: 'نسيم',        labelEn: 'Wind' },
 ]
 
 const SOUND_URLS = new Map<SoundId, string>()
-const SAMPLE_RATE = 22050
-const DURATION_SECONDS = 10
+const SAMPLE_RATE = 24000
+const DURATION_SECONDS = 14
 
 function randomNoise() {
   return Math.random() * 2 - 1
@@ -28,45 +28,116 @@ function clampSample(value: number) {
   return Math.max(-1, Math.min(1, value))
 }
 
+function envelopePulse(t: number, center: number, width: number) {
+  const d = Math.abs(t - center)
+  if (d > width) return 0
+  return Math.pow(1 - d / width, 2)
+}
+
 function makeSoundSamples(id: SoundId) {
   const length = SAMPLE_RATE * DURATION_SECONDS
   const samples = new Float32Array(length)
-  let smooth = 0
+
+  let low = 0
+  let mid = 0
+  let high = 0
   let brown = 0
+  let lastBurst = -10
+  let birdPhase = 0
 
   for (let i = 0; i < length; i++) {
     const t = i / SAMPLE_RATE
     const n = randomNoise()
-    smooth = smooth * 0.985 + n * 0.015
-    brown = (brown + 0.03 * n) / 1.03
 
-    if (id === 'white') {
-      samples[i] = n * 0.22
-    } else if (id === 'rain') {
-      const drip = Math.random() > 0.997 ? Math.sin(t * 9000) * 0.35 : 0
-      samples[i] = n * 0.18 + smooth * 0.45 + drip
-    } else if (id === 'bonfire') {
-      const crackle = Math.random() > 0.995 ? n * 0.8 : 0
-      samples[i] = brown * 0.9 + n * 0.045 + crackle
-    } else if (id === 'forest') {
-      const bird = Math.random() > 0.9992 ? Math.sin(t * 7000) * 0.22 : 0
-      samples[i] = smooth * 0.75 + brown * 0.18 + bird
-    } else if (id === 'cafe') {
-      const murmur = brown * 0.65 + smooth * 0.28
-      const cup = Math.random() > 0.9995 ? Math.sin(t * 1600) * 0.28 : 0
-      samples[i] = murmur + cup
-    } else if (id === 'ocean') {
-      const wave = 0.35 + 0.65 * ((Math.sin(t * Math.PI * 0.35) + 1) / 2)
-      samples[i] = (smooth * 0.8 + brown * 0.35) * wave
-    } else if (id === 'wind') {
-      const gust = 0.35 + 0.65 * ((Math.sin(t * Math.PI * 0.22) + 1) / 2)
-      samples[i] = (smooth * 0.95 + n * 0.04) * gust
+    low = low * 0.995 + n * 0.005
+    mid = mid * 0.965 + n * 0.035
+    high = n - mid
+    brown = (brown + 0.025 * n) / 1.025
+
+    let value = 0
+
+    switch (id) {
+      case 'white': {
+        // Clean static / white noise: bright and steady, intentionally not natural ambience.
+        value = high * 0.72 + n * 0.18
+        break
+      }
+
+      case 'rain': {
+        // Fine high rain bed + many tiny droplets + occasional soft low rumble.
+        const droplet = Math.random() > 0.992 ? Math.sin(2 * Math.PI * (1800 + Math.random() * 2200) * t) * (0.12 + Math.random() * 0.2) : 0
+        const shower = Math.max(0, high) * 0.42 + Math.abs(n) * 0.08
+        const rumble = low * 0.22 * (0.5 + 0.5 * Math.sin(2 * Math.PI * 0.07 * t))
+        value = shower + droplet + rumble
+        break
+      }
+
+      case 'bonfire': {
+        // Warm low body + sparse sharp crackles and pops.
+        const warmth = brown * 0.75 + low * 0.25
+        const crackleChance = Math.random() > 0.9975 || (t - lastBurst < 0.035 && Math.random() > 0.7)
+        if (crackleChance && t - lastBurst > 0.02) lastBurst = t
+        const crackleEnv = Math.max(0, 1 - (t - lastBurst) / 0.045)
+        const crackle = crackleEnv > 0 ? randomNoise() * crackleEnv * 0.9 : 0
+        value = warmth * 0.55 + crackle
+        break
+      }
+
+      case 'forest': {
+        // Leaf rustle + bird chirps with pitch movement.
+        const rustle = mid * 0.25 + high * 0.1
+        const breeze = low * 0.4 * (0.6 + 0.4 * Math.sin(2 * Math.PI * 0.11 * t))
+        const chirpWindow = (t % 3.7)
+        let birds = 0
+        if (chirpWindow > 0.25 && chirpWindow < 0.65) {
+          const chirpEnv = envelopePulse(chirpWindow, 0.42, 0.2)
+          birdPhase += (1500 + 700 * Math.sin(chirpWindow * 18)) / SAMPLE_RATE
+          birds = Math.sin(2 * Math.PI * birdPhase) * chirpEnv * 0.22
+        }
+        value = rustle + breeze + birds
+        break
+      }
+
+      case 'cafe': {
+        // Low room hum + soft conversation-like vowel movement + rare cup clinks.
+        const room = low * 0.55 + brown * 0.35
+        const babble =
+          Math.sin(2 * Math.PI * 115 * t + Math.sin(t * 3.1) * 2) * 0.06 +
+          Math.sin(2 * Math.PI * 170 * t + Math.sin(t * 2.2) * 1.5) * 0.04 +
+          Math.sin(2 * Math.PI * 235 * t + Math.sin(t * 4.3) * 1.2) * 0.03
+        const clink = Math.random() > 0.9992 ? Math.sin(2 * Math.PI * 1200 * t) * 0.35 : 0
+        value = room * 0.55 + babble + clink
+        break
+      }
+
+      case 'ocean': {
+        // Slow swelling waves with low undertow and white foam at wave peaks.
+        const swell = 0.25 + 0.75 * Math.pow((Math.sin(2 * Math.PI * 0.13 * t) + 1) / 2, 2)
+        const secondSwell = 0.35 + 0.65 * ((Math.sin(2 * Math.PI * 0.07 * t + 1.6) + 1) / 2)
+        const foam = Math.max(0, high) * swell * 0.5
+        const undertow = brown * 0.5 + low * 0.35
+        value = undertow * secondSwell + foam
+        break
+      }
+
+      case 'wind': {
+        // Hollow gusts with airy high movement, less watery than ocean.
+        const gust = 0.15 + 0.85 * Math.pow((Math.sin(2 * Math.PI * 0.09 * t + Math.sin(t * 0.45)) + 1) / 2, 2)
+        const whistle = Math.sin(2 * Math.PI * (520 + 90 * Math.sin(t * 1.3)) * t) * 0.035 * gust
+        value = (mid * 0.45 + high * 0.18 + low * 0.28) * gust + whistle
+        break
+      }
     }
+
+    // Soft fade-in/out to avoid clicks when the loop restarts.
+    const fade = Math.min(1, i / (SAMPLE_RATE * 0.08), (length - i) / (SAMPLE_RATE * 0.08))
+    samples[i] = value * fade
   }
 
   let peak = 0
   for (const sample of samples) peak = Math.max(peak, Math.abs(sample))
-  const normalizer = peak > 0 ? 0.85 / peak : 1
+  const target = id === 'white' ? 0.5 : 0.75
+  const normalizer = peak > 0 ? target / peak : 1
   for (let i = 0; i < samples.length; i++) samples[i] = clampSample(samples[i] * normalizer)
 
   return samples
