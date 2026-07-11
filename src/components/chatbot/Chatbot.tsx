@@ -24,21 +24,25 @@ interface VisualPayload { type: VisualType; data: any }
 const visualCache = new Map<string, VisualPayload>() // msgId → visual
 
 // ─── Error classifier ─────────────────────────────────────────────────────────
-type ErrorKind = 'rate_limit' | 'platform_key_missing' | 'invalid_key' | 'network' | 'generic'
+type ErrorKind = 'rate_limit' | 'platform_key_missing' | 'invalid_key' | 'provider' | 'network' | 'generic'
 
 function classifyError(raw: string): ErrorKind {
   const m = raw.toLowerCase()
   if (m.includes('rate_limit') || m.includes('rate limit') || m.includes('429') || m.includes('too many')) return 'rate_limit'
   if (m.includes('platform_key_missing')) return 'platform_key_missing'
   if (m.includes('401') || m.includes('invalid_key') || m.includes('unauthorized')) return 'invalid_key'
+  if (m.includes('provider_error') || m.includes('provider failed') || m.includes('bad_provider_response') || m.includes('openrouter') || m.includes('gemini') || m.includes('groq')) return 'provider'
   if (m.includes('network') || m.includes('fetch') || m.includes('failed to fetch')) return 'network'
   return 'generic'
 }
 
 function friendlyText(kind: ErrorKind, isAr: boolean): string {
   if (kind === 'invalid_key') return isAr ? 'مفتاح API غير صحيح. تحقق من الإعدادات.' : 'Invalid API key. Check Settings.'
-  if (kind === 'network')    return isAr ? 'خطأ في الاتصال. تحقق من الإنترنت.' : 'Network error. Check your connection.'
-  return isAr ? 'المساعد غير متاح مؤقتاً.' : 'Assistant temporarily unavailable.'
+  if (kind === 'provider') return isAr
+    ? 'مزود الذكاء الاصطناعي رفض الطلب أو أعاد خطأ. تم تحديث النموذج، جرّب مرة أخرى بعد تحديث الصفحة. إذا تكرر الخطأ فغالباً يحتاج مفتاح OpenRouter إلى رصيد أو تبديل نموذج.'
+    : 'The AI provider rejected the request or returned an error. The model was updated; refresh and try again. If it continues, the OpenRouter key may need credits or a different model.'
+  if (kind === 'network') return isAr ? 'خطأ في الاتصال. تحقق من الإنترنت.' : 'Network error. Check your connection.'
+  return isAr ? 'تعذر تشغيل المساعد الآن. جرّب تحديث الصفحة أو تغيير مزود الذكاء الاصطناعي.' : 'The assistant could not run right now. Refresh the page or change the AI provider.'
 }
 
 // ─── Visual command quick buttons ─────────────────────────────────────────────
