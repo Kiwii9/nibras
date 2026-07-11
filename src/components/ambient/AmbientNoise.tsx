@@ -4,9 +4,11 @@ import { Volume2, VolumeX, X, Music2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStore } from '@/store'
 
-type SoundId = 'rain' | 'bonfire' | 'forest' | 'cafe' | 'ocean' | 'wind'
+type SoundId = 'white' | 'rain' | 'bonfire' | 'forest' | 'cafe' | 'ocean' | 'wind'
+type AudioContextConstructor = new () => AudioContext
 
 const SOUNDS: { id: SoundId; emoji: string; labelAr: string; labelEn: string; color: string }[] = [
+  { id: 'white',   emoji: '📻', labelAr: 'ضوضاء',     labelEn: 'White',     color: '#9CA3AF' },
   { id: 'rain',    emoji: '🌧️', labelAr: 'مطر',       labelEn: 'Rain',      color: '#4A90D9' },
   { id: 'bonfire', emoji: '🔥', labelAr: 'نار',        labelEn: 'Bonfire',   color: '#E8622A' },
   { id: 'forest',  emoji: '🌿', labelAr: 'غابة',       labelEn: 'Forest',    color: '#56A86B' },
@@ -14,6 +16,17 @@ const SOUNDS: { id: SoundId; emoji: string; labelAr: string; labelEn: string; co
   { id: 'ocean',   emoji: '🌊', labelAr: 'أمواج',      labelEn: 'Ocean',     color: '#3E9AA6' },
   { id: 'wind',    emoji: '🍃', labelAr: 'نسيم',       labelEn: 'Wind',      color: '#8B9DC3' },
 ]
+
+const getAudioContextConstructor = (): AudioContextConstructor => {
+  const audioWindow = window as Window & typeof globalThis & { webkitAudioContext?: AudioContextConstructor }
+  const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext
+
+  if (!AudioContextCtor) {
+    throw new Error('Web Audio is not supported in this browser')
+  }
+
+  return AudioContextCtor
+}
 
 // ─── Sound engine — synthesizes realistic ambient audio ───────────────────────
 class AmbientEngine {
@@ -23,9 +36,15 @@ class AmbientEngine {
   intervals: ReturnType<typeof setInterval>[] = []
 
   constructor() {
-    this.ctx = new AudioContext()
+    const AudioContextCtor = getAudioContextConstructor()
+    this.ctx = new AudioContextCtor()
     this.master = this.ctx.createGain()
     this.master.connect(this.ctx.destination)
+  }
+
+  async resume() {
+    if (this.ctx.state === 'closed') throw new Error('Audio context is closed')
+    if (this.ctx.state === 'suspended') await this.ctx.resume()
   }
 
   setVolume(v: number) { this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.1) }
@@ -75,6 +94,16 @@ class AmbientEngine {
     g.gain.value = depth
     osc.connect(g); g.connect(target)
     osc.start(); this.nodes.push(osc, g)
+  }
+
+  // 📻 White noise — simple steady focus noise for regular daily use
+  buildWhite() {
+    const body = this.noise('white')
+    const hp = this.filter('highpass', 80)
+    const lp = this.filter('lowpass', 12000)
+    const gBody = this.gain(0.16)
+    body.connect(hp); hp.connect(lp); lp.connect(gBody); gBody.connect(this.master)
+    body.start(); this.nodes.push(body, hp, lp, gBody)
   }
 
   // 🌧️ Rain — layered filtered noise + random drip tones
@@ -259,6 +288,7 @@ class AmbientEngine {
   }
 
   build(id: SoundId) {
+    if (id === 'white')   this.buildWhite()
     if (id === 'rain')    this.buildRain()
     if (id === 'bonfire') this.buildBonfire()
     if (id === 'forest')  this.buildForest()
@@ -272,6 +302,7 @@ class AmbientEngine {
     this.intervals = []
     this.nodes.forEach(n => { try { (n as AudioScheduledSourceNode).stop?.() } catch {} try { n.disconnect() } catch {} })
     this.nodes = []
+    if (this.ctx.state !== 'closed') void this.ctx.close()
   }
 }
 
@@ -282,6 +313,7 @@ export function AmbientNoise() {
   const [open, setOpen]       = useState(false)
   const [playing, setPlaying] = useState<SoundId | null>(null)
   const [volume, setVolume]   = useState(0.4)
+  const [audioError, setAudioError] = useState<string | null>(null)
   const engineRef = useRef<AmbientEngine | null>(null)
 
   const stop = useCallback(() => {
@@ -290,22 +322,34 @@ export function AmbientNoise() {
     setPlaying(null)
   }, [])
 
-  const play = useCallback((id: SoundId) => {
+  const play = useCallback(async (id: SoundId) => {
     if (playing === id) { stop(); return }
+
+    setAudioError(null)
     stop()
-    const eng = new AmbientEngine()
-    if (eng.ctx.state === 'suspended') eng.ctx.resume()
-    eng.setVolume(volume)
-    eng.build(id)
-    engineRef.current = eng
-    setPlaying(id)
-  }, [playing, volume, stop])
+
+    let eng: AmbientEngine | null = null
+    try {
+      eng = new AmbientEngine()
+      await eng.resume()
+      eng.setVolume(volume)
+      eng.build(id)
+      engineRef.current = eng
+      setPlaying(id)
+    } catch (error) {
+      eng?.destroy()
+      console.error('Failed to start ambient audio', error)
+      setAudioError(isAr
+        ? 'تعذر تشغيل الصوت. اضغط مرة أخرى، وتأكد أن صوت المتصفح غير مكتوم.'
+        : 'Could not start audio. Tap again and make sure the browser tab is not muted.')
+    }
+  }, [isAr, playing, volume, stop])
 
   useEffect(() => {
     engineRef.current?.setVolume(volume)
   }, [volume])
 
-  useEffect(() => () => stop(), [])
+  useEffect(() => () => stop(), [stop])
 
   return (
     <div className="relative">
@@ -334,7 +378,7 @@ export function AmbientNoise() {
 
             <div className="grid grid-cols-3 gap-2">
               {SOUNDS.map(s => (
-                <motion.button key={s.id} whileTap={{ scale: 0.93 }} onClick={() => play(s.id)}
+                <motion.button key={s.id} whileTap={{ scale: 0.93 }} onClick={() => void play(s.id)}
                   className={cn('flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-medium transition-all',
                     playing === s.id
                       ? 'border-primary/60 bg-primary/10 text-primary'
@@ -353,6 +397,12 @@ export function AmbientNoise() {
                 </motion.button>
               ))}
             </div>
+
+            {audioError && (
+              <p className="text-[11px] leading-relaxed text-destructive bg-destructive/10 border border-destructive/20 rounded-xl p-2">
+                {audioError}
+              </p>
+            )}
 
             {playing && (
               <div className="space-y-2 pt-1 border-t border-border/40">
