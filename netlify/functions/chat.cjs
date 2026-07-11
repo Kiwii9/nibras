@@ -41,7 +41,7 @@ exports.handler = async (event) => {
   const temperature = typeof body.temperature === 'number' ? Math.min(Math.max(body.temperature, 0), 1.2) : 0.7
   const useCustomKey = body.useCustomKey === true
   const customKey = String(body.customKey || '')
-  const customProvider = String(body.customProvider || 'openrouter')
+  const customProvider = String(body.customProvider || 'openrouter').toLowerCase()
   const customModel = String(body.customModel || '')
 
   if (messages.length === 0) {
@@ -66,12 +66,9 @@ exports.handler = async (event) => {
     })
   }
 
-  // ── Mock mode (admin testing) ───────────────────────────────────────────────
   if (body.mock === true) {
     await new Promise(r => setTimeout(r, body.mockLatency || 800))
-    if (body.mockFail) {
-      return json(500, { error: 'mock_failure', message: 'Simulated failure' })
-    }
+    if (body.mockFail) return json(500, { error: 'mock_failure', message: 'Simulated failure' })
     return json(200, {
       content: body.mockResponse || '🧪 هذا رد وهمي من وضع الاختبار. Mock response from admin test mode.',
       usage: { prompt_tokens: 42, completion_tokens: 18, total_tokens: 60 },
@@ -89,41 +86,83 @@ exports.handler = async (event) => {
 
 async function routePlatformKey({ messages, max_tokens, temperature }) {
   const preferred = String(process.env.AI_PROVIDER || 'openrouter').toLowerCase()
+  const candidates = []
 
-  if (preferred === 'groq' && process.env.GROQ_API_KEY) {
-    return await callGroq(process.env.GROQ_API_KEY, process.env.GROQ_MODEL || 'llama-3.1-8b-instant', messages, max_tokens, temperature)
-  }
-  if (preferred === 'gemini' && process.env.GEMINI_API_KEY) {
-    return await callGemini(process.env.GEMINI_API_KEY, process.env.GEMINI_MODEL || 'gemini-1.5-flash', messages, max_tokens, temperature)
-  }
-  if (process.env.OPENROUTER_API_KEY) {
-    return await callOpenRouter(process.env.OPENROUTER_API_KEY, process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free', messages, max_tokens, temperature)
-  }
-  if (process.env.GROQ_API_KEY) {
-    return await callGroq(process.env.GROQ_API_KEY, process.env.GROQ_MODEL || 'llama-3.1-8b-instant', messages, max_tokens, temperature)
-  }
-  if (process.env.GEMINI_API_KEY) {
-    return await callGemini(process.env.GEMINI_API_KEY, process.env.GEMINI_MODEL || 'gemini-1.5-flash', messages, max_tokens, temperature)
+  const add = (provider) => {
+    if (!candidates.includes(provider)) candidates.push(provider)
   }
 
-  return json(503, { error: 'platform_key_missing', message: 'No platform AI key configured.' })
+  add(preferred)
+  add('openrouter')
+  add('groq')
+  add('gemini')
+
+  let lastResponse = null
+  for (const provider of candidates) {
+    if (!hasPlatformKey(provider)) continue
+    const response = await callPlatformProvider(provider, messages, max_tokens, temperature)
+    if (isGoodAiResponse(response)) return response
+    lastResponse = response
+  }
+
+  return lastResponse || json(503, { error: 'platform_key_missing', message: 'No platform AI key configured.' })
 }
 
 async function routeCustomKey({ provider, apiKey, model, messages, max_tokens, temperature }) {
   try {
-    if (provider === 'gemini') {
-      return await callGemini(apiKey, model || 'gemini-1.5-flash', messages, max_tokens, temperature)
+    const response = await callProvider(provider, apiKey, model, messages, max_tokens, temperature)
+    if (!isGoodAiResponse(response)) {
+      return json(502, {
+        error: 'bad_provider_response',
+        message: 'The selected AI provider returned an empty or debug-only response. Try another model or provider.',
+      })
     }
-    if (provider === 'openai') {
-      return await callOpenAI(apiKey, model || 'gpt-4o-mini', messages, max_tokens, temperature)
-    }
-    if (provider === 'groq') {
-      return await callGroq(apiKey, model || 'llama-3.1-8b-instant', messages, max_tokens, temperature)
-    }
-    return await callOpenRouter(apiKey, model || 'meta-llama/llama-3.1-8b-instruct:free', messages, max_tokens, temperature)
+    return response
   } catch (err) {
-    return json(502, { error: 'provider_error', message: safeError(err) })
+    console.error('Custom provider error', provider, err)
+    return json(502, { error: 'provider_error', message: 'The selected AI provider failed. Try another model or provider.' })
   }
+}
+
+function hasPlatformKey(provider) {
+  if (provider === 'openrouter') return Boolean(process.env.OPENROUTER_API_KEY)
+  if (provider === 'groq') return Boolean(process.env.GROQ_API_KEY)
+  if (provider === 'gemini') return Boolean(process.env.GEMINI_API_KEY)
+  return false
+}
+
+async function callPlatformProvider(provider, messages, max_tokens, temperature) {
+  if (provider === 'openrouter') {
+    return await callOpenRouter(
+      process.env.OPENROUTER_API_KEY,
+      cleanOpenRouterModel(process.env.OPENROUTER_MODEL),
+      messages,
+      max_tokens,
+      temperature
+    )
+  }
+  if (provider === 'groq') {
+    return await callGroq(process.env.GROQ_API_KEY, process.env.GROQ_MODEL || 'llama-3.1-8b-instant', messages, max_tokens, temperature)
+  }
+  if (provider === 'gemini') {
+    return await callGemini(process.env.GEMINI_API_KEY, process.env.GEMINI_MODEL || 'gemini-1.5-flash', messages, max_tokens, temperature)
+  }
+  return json(503, { error: 'unknown_provider', message: 'Unknown AI provider.' })
+}
+
+async function callProvider(provider, apiKey, model, messages, max_tokens, temperature) {
+  if (provider === 'gemini') return await callGemini(apiKey, model || 'gemini-1.5-flash', messages, max_tokens, temperature)
+  if (provider === 'openai') return await callOpenAI(apiKey, model || 'gpt-4o-mini', messages, max_tokens, temperature)
+  if (provider === 'groq') return await callGroq(apiKey, model || 'llama-3.1-8b-instant', messages, max_tokens, temperature)
+  return await callOpenRouter(apiKey, cleanOpenRouterModel(model), messages, max_tokens, temperature)
+}
+
+function cleanOpenRouterModel(model) {
+  const value = String(model || '').trim()
+  if (!value || value === 'openrouter/free' || value === 'openrouter/auto') {
+    return 'meta-llama/llama-3.1-8b-instruct:free'
+  }
+  return value
 }
 
 async function callOpenRouter(apiKey, model, messages, max_tokens, temperature) {
@@ -132,7 +171,7 @@ async function callOpenRouter(apiKey, model, messages, max_tokens, temperature) 
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.PUBLIC_SITE_URL || 'https://nibras.netlify.app',
+      'HTTP-Referer': process.env.PUBLIC_SITE_URL || 'https://nibras-tutor.netlify.app',
       'X-Title': 'Nibras AI Tutor',
     },
     body: JSON.stringify({ model, messages, max_tokens, temperature }),
@@ -152,10 +191,10 @@ async function callGroq(apiKey, model, messages, max_tokens, temperature) {
 async function callGemini(apiKey, model, messages, max_tokens, temperature) {
   const contents = messages
     .filter(m => m.role !== 'system')
-    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
+    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content || '') }] }))
   const systemMsg = messages.find(m => m.role === 'system')
   const body = { contents, generationConfig: { maxOutputTokens: max_tokens, temperature } }
-  if (systemMsg) body.systemInstruction = { parts: [{ text: systemMsg.content }] }
+  if (systemMsg) body.systemInstruction = { parts: [{ text: String(systemMsg.content || '') }] }
 
   const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
@@ -165,7 +204,11 @@ async function callGemini(apiKey, model, messages, max_tokens, temperature) {
   if (!res.ok) return await normalizeError(res, 'gemini')
 
   const data = await res.json()
-  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  const content = extractGeminiText(data)
+  if (!isUsableContent(content)) {
+    return json(502, { error: 'bad_provider_response', message: 'The AI provider returned an empty or debug-only response.' })
+  }
+
   return json(200, {
     content,
     usage: {
@@ -187,17 +230,47 @@ async function callOpenAI(apiKey, model, messages, max_tokens, temperature) {
 async function normalizeOpenAIStyleResponse(res, provider) {
   if (!res.ok) return await normalizeError(res, provider)
   const data = await res.json()
-  return json(200, {
-    content: data?.choices?.[0]?.message?.content || '',
-    usage: data?.usage,
-  })
+  const content = String(data?.choices?.[0]?.message?.content || '').trim()
+  if (!isUsableContent(content)) {
+    return json(502, { error: 'bad_provider_response', message: 'The AI provider returned an empty or debug-only response.' })
+  }
+  return json(200, { content, usage: data?.usage })
+}
+
+function extractGeminiText(data) {
+  const parts = data?.candidates?.[0]?.content?.parts
+  if (!Array.isArray(parts)) return ''
+  return parts.map(part => part?.text || '').filter(Boolean).join('\n').trim()
+}
+
+function isGoodAiResponse(response) {
+  if (!response || response.statusCode < 200 || response.statusCode >= 300) return false
+  try {
+    const payload = JSON.parse(response.body || '{}')
+    return isUsableContent(payload.content)
+  } catch {
+    return false
+  }
+}
+
+function isUsableContent(content) {
+  const text = String(content || '').trim()
+  if (!text) return false
+  const lower = text.toLowerCase().replace(/\s+/g, ' ')
+
+  if (lower === 'user safety: safe response safety: safe') return false
+  if (lower.includes('user safety:') && lower.includes('response safety:') && text.length < 160) return false
+  if (lower.includes('safety: safe') && text.length < 80) return false
+
+  return true
 }
 
 async function normalizeError(res, provider) {
   const txt = await res.text().catch(() => '')
+  console.error(`${provider} error`, res.status, txt.slice(0, 500))
   if (res.status === 429) return json(429, { error: 'rate_limit', message: 'Rate limit reached.' })
   if (res.status === 401 || res.status === 403) return json(401, { error: 'invalid_key', message: 'Invalid or unauthorized API key.' })
-  return json(502, { error: `${provider}_error`, message: txt.slice(0, 500) })
+  return json(502, { error: `${provider}_error`, message: 'The AI provider failed. Try again or switch provider.' })
 }
 
 function checkDailyLimit(key) {
@@ -236,10 +309,6 @@ function nextUtcDay() {
   d.setUTCDate(d.getUTCDate() + 1)
   d.setUTCHours(0, 0, 0, 0)
   return d.toISOString()
-}
-
-function safeError(err) {
-  return err instanceof Error ? err.message : String(err)
 }
 
 function json(statusCode, payload) {
