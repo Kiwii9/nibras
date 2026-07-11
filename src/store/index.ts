@@ -109,7 +109,7 @@ export interface ApiConfig {
   provider: 'openai' | 'gemini' | 'openrouter' | 'claude' | 'groq'
   apiKey: string
   model: string
-  useCustomKey: boolean  // false = use platform key, true = use user's own key
+  useCustomKey: boolean
 }
 
 export interface StudyPlanItem {
@@ -437,7 +437,7 @@ export const useStore = create<NibrasState>()(
 
       exams: [],
       addExam: (e) => set((st) => ({ exams: [e, ...st.exams] })),
-      updateExam: (id, partial) => set((st) => ({ exams: st.exams.map((e) => (e.id === id ? { ...e, ...partial })) })),
+      updateExam: (id, partial) => set((st) => ({ exams: st.exams.map((e) => (e.id === id ? { ...e, ...partial } : e)) })),
       deleteExam: (id) => set((st) => ({ exams: st.exams.filter((e) => e.id !== id) })),
 
       studyPlan: [],
