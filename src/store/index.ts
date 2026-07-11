@@ -29,7 +29,7 @@ export interface UploadedFile {
   uploadedAt: string
   content?: string
   driveFileId?: string
-  source: 'gdrive'
+  source: 'gdrive' | 'local'
   folderId?: string | null
 }
 
@@ -259,7 +259,6 @@ interface NibrasState {
   addStudyPlanItem: (item: StudyPlanItem) => void
   toggleStudyPlanItem: (id: string) => void
   deleteStudyPlanItem: (id: string) => void
-
   pomodoroSettings: PomodoroSettings
   setPomodoroSettings: (s: PomodoroSettings) => void
   dailyMessageCount: number
@@ -438,7 +437,7 @@ export const useStore = create<NibrasState>()(
 
       exams: [],
       addExam: (e) => set((st) => ({ exams: [e, ...st.exams] })),
-      updateExam: (id, partial) => set((st) => ({ exams: st.exams.map((e) => (e.id === id ? { ...e, ...partial } : e)) })),
+      updateExam: (id, partial) => set((st) => ({ exams: st.exams.map((e) => (e.id === id ? { ...e, ...partial })) })),
       deleteExam: (id) => set((st) => ({ exams: st.exams.filter((e) => e.id !== id) })),
 
       studyPlan: [],
