@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   HardDrive, Trash2, File, Image, Presentation, FileText, X, CheckCircle,
   AlertCircle, Search, ExternalLink, CloudUpload, FolderPlus, Folder,
-  Inbox, MoveRight, UploadCloud
+  Inbox, MoveRight, UploadCloud, Laptop
 } from 'lucide-react'
 import { useStore, UploadedFile, ResourceFolder } from '@/store'
 import { useT } from '@/hooks/useT'
@@ -14,16 +14,21 @@ const MOCK_DRIVE_FILES = [
   { id: 'gd2', name: 'Chemistry Notes - Organic Compounds.docx', size: 890000, type: 'docx' as const, modified: '2025-06-07' },
   { id: 'gd3', name: 'Physics Lecture Slides Week 12.pptx', size: 5100000, type: 'pptx' as const, modified: '2025-06-06' },
   { id: 'gd4', name: 'Anatomy Diagrams - Nervous System.png', size: 340000, type: 'image' as const, modified: '2025-06-05' },
-  { id: 'gd5', name: 'History Essay - Industrial Revolution.docx', size: 430000, type: 'docx' as const, modified: '2025-06-04' },
-  { id: 'gd6', name: 'Math Formula Sheet.pdf', size: 1100000, type: 'pdf' as const, modified: '2025-06-03' },
-  { id: 'gd7', name: 'Economics Presentation.pptx', size: 3200000, type: 'pptx' as const, modified: '2025-06-02' },
-  { id: 'gd8', name: 'Lab Report - Titration.pdf', size: 780000, type: 'pdf' as const, modified: '2025-06-01' },
 ]
 
 const FOLDER_COLORS = ['#2D7A84', '#C9A84C', '#4A90D9', '#7C5CBF', '#56A86B', '#E05555']
 
 function formatBytes(b: number) {
   return b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getFileType(file: File): UploadedFile['type'] | null {
+  const name = file.name.toLowerCase()
+  if (file.type.startsWith('image/')) return 'image'
+  if (name.endsWith('.pdf')) return 'pdf'
+  if (name.endsWith('.docx')) return 'docx'
+  if (name.endsWith('.pptx')) return 'pptx'
+  return null
 }
 
 function FileIcon({ type, className }: { type: UploadedFile['type']; className?: string }) {
@@ -39,7 +44,6 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
   const isAr = lang === 'ar'
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
-  const [tab, setTab] = useState<'drive' | 'computer'>('drive')
   const filtered = MOCK_DRIVE_FILES.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
 
   const toggle = (id: string) => setSelected(prev => {
@@ -64,7 +68,7 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
             <div>
               <p className="font-semibold text-white text-sm">Google Drive</p>
               <p className="text-teal-300/70 text-xs">
-                {isAr ? 'اختر من Drive أو ارفع من جهازك عبر نافذة Drive' : 'Choose from Drive or upload from your computer through the Drive dialog'}
+                {isAr ? 'عرض تجريبي آمن إلى أن يتم ربط Google Picker' : 'Safe demo preview until Google Picker is connected'}
               </p>
             </div>
           </div>
@@ -73,81 +77,53 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
           </button>
         </div>
 
-        <div className="p-3 border-b border-border/50 grid grid-cols-2 gap-2">
-          <button onClick={() => setTab('drive')}
-            className={cn('rounded-xl px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 border', tab === 'drive' ? 'bg-primary/10 text-primary border-primary/30' : 'border-border/60 hover:bg-muted')}>
-            <HardDrive className="w-4 h-4" />{isAr ? 'ملفاتي في Drive' : 'My Drive'}
-          </button>
-          <button onClick={() => setTab('computer')}
-            className={cn('rounded-xl px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 border', tab === 'computer' ? 'bg-primary/10 text-primary border-primary/30' : 'border-border/60 hover:bg-muted')}>
-            <UploadCloud className="w-4 h-4" />{isAr ? 'رفع من الجهاز عبر Drive' : 'Upload via Drive'}
-          </button>
+        <div className="p-4 border-b border-border/50">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 left-2.5 text-muted-foreground pointer-events-none" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={isAr ? 'بحث في ملفات Drive التجريبية...' : 'Search demo Drive files...'}
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-muted border border-border focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
         </div>
 
-        {tab === 'drive' ? (
-          <>
-            <div className="px-4 py-3 border-b border-border/50">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 left-2.5 text-muted-foreground pointer-events-none" />
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder={isAr ? 'بحث في Drive...' : 'Search Drive...'}
-                  className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-muted border border-border focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-            </div>
+        <div className="overflow-y-auto flex-1 p-2">
+          {filtered.map(file => {
+            const isSel = selected.has(file.id)
+            return (
+              <button key={file.id} onClick={() => toggle(file.id)}
+                className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-start transition-all mb-1 border',
+                  isSel ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted border-transparent')}>
+                <FileIcon type={file.type} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatBytes(file.size)} · {file.modified}</p>
+                </div>
+                {isSel && <CheckCircle className="w-4 h-4 text-primary shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
 
-            <div className="overflow-y-auto flex-1 p-2">
-              {filtered.map(file => {
-                const isSel = selected.has(file.id)
-                return (
-                  <button key={file.id} onClick={() => toggle(file.id)}
-                    className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-start transition-all mb-1 border',
-                      isSel ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted border-transparent')}>
-                    <FileIcon type={file.type} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatBytes(file.size)} · {file.modified}</p>
-                    </div>
-                    {isSel && <CheckCircle className="w-4 h-4 text-primary shrink-0" />}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="p-4 border-t border-border/50 flex gap-3">
-              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors">
-                {isAr ? 'إلغاء' : 'Cancel'}
-              </button>
-              <button disabled={selected.size === 0} onClick={() => onSelect(MOCK_DRIVE_FILES.filter(f => selected.has(f.id)))}
-                className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold', selected.size > 0 ? 'btn-teal' : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50')}>
-                {isAr ? `استيراد (${selected.size})` : `Import (${selected.size})`}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="p-6 space-y-4 overflow-y-auto">
-            <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-8 text-center">
-              <UploadCloud className="w-12 h-12 mx-auto text-primary mb-3" />
-              <h3 className="font-semibold mb-2">{isAr ? 'رفع من جهازك، لكن عبر Google Drive' : 'Upload from your computer, through Google Drive'}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
-                {isAr
-                  ? 'في النسخة الإنتاجية، هذا الزر سيفتح Google Picker مع خيار الرفع. الملف يُرفع إلى Google Drive أولاً ثم يختاره التطبيق. لا يوجد رفع مباشر إلى خادم الموقع.'
-                  : 'In production, this opens Google Picker with the upload view. The file is uploaded to Google Drive first, then selected by the app. There is no direct upload to the app server.'}
-              </p>
-              <button onClick={() => setTab('drive')} className="btn-teal mt-5 px-5 py-2.5">
-                <HardDrive className="w-4 h-4" />{isAr ? 'متابعة إلى Drive' : 'Continue to Drive'}
-              </button>
-            </div>
-            <div className="glass-card p-4 rounded-xl text-xs text-muted-foreground leading-relaxed">
-              {isAr
-                ? 'ملاحظة تقنية: لربط هذا فعليًا على Netlify، فعّل Google Picker API وGoogle Drive API، واستخدم DocsUploadView داخل Picker. هذه الواجهة الحالية محاكاة آمنة للتدفق المطلوب.'
-                : 'Technical note: to make this real on Netlify, enable Google Picker API and Google Drive API, then use DocsUploadView in Picker. The current UI is a safe mock of the intended flow.'}
-              {' '}
-              <a href="https://developers.google.com/drive/picker" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-                Google Picker docs <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
+        <div className="p-4 border-t border-border/50 space-y-3">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            {isAr
+              ? 'ملاحظة: هذا الاستيراد تجريبي. للاستخدام الحقيقي الآن استخدم رفع الملفات من جهازك.'
+              : 'Note: this Drive import is a demo. For real use now, upload files from your computer.'}
+            {' '}
+            <a href="https://developers.google.com/drive/picker" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+              Google Picker <ExternalLink className="w-3 h-3" />
+            </a>
+          </p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors">
+              {isAr ? 'إلغاء' : 'Cancel'}
+            </button>
+            <button disabled={selected.size === 0} onClick={() => onSelect(MOCK_DRIVE_FILES.filter(f => selected.has(f.id)))}
+              className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold', selected.size > 0 ? 'btn-teal' : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50')}>
+              {isAr ? `استيراد (${selected.size})` : `Import (${selected.size})`}
+            </button>
           </div>
-        )}
+        </div>
       </motion.div>
     </motion.div>
   )
@@ -193,6 +169,7 @@ export function DriveUploader() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const [del, setDel] = useState<string | null>(null)
   const [activeFolderId, setActiveFolderId] = useState<string | 'all' | 'uncategorized'>('all')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const t = (ar: string, en: string) => isAr ? ar : en
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000) }
@@ -210,9 +187,39 @@ export function DriveUploader() {
     return file.folderId === activeFolderId
   })
 
+  const defaultFolderId = activeFolderId !== 'all' && activeFolderId !== 'uncategorized' ? activeFolderId : null
+
+  const handleLocalFiles = (selectedFiles: FileList | null) => {
+    if (!selectedFiles?.length) return
+
+    let added = 0
+    let skipped = 0
+
+    Array.from(selectedFiles).forEach(file => {
+      const type = getFileType(file)
+      if (!type) { skipped++; return }
+      if (files.some(existing => existing.source === 'local' && existing.name === file.name && existing.size === file.size)) { skipped++; return }
+
+      addFile({
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: file.name,
+        type,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+        source: 'local',
+        folderId: defaultFolderId,
+        content: `[Local file: ${file.name}]`,
+      })
+      added++
+    })
+
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (added) showToast(t(`تمت إضافة ${added} ملف`, `${added} file(s) added`))
+    if (!added && skipped) showToast(t('لم تتم إضافة ملفات جديدة أو النوع غير مدعوم', 'No new supported files were added'), false)
+  }
+
   const handleSelect = (driveFiles: typeof MOCK_DRIVE_FILES) => {
     let count = 0
-    const defaultFolderId = activeFolderId !== 'all' && activeFolderId !== 'uncategorized' ? activeFolderId : null
     driveFiles.forEach(f => {
       if (files.find(e => e.driveFileId === f.id)) return
       addFile({
@@ -229,7 +236,7 @@ export function DriveUploader() {
       count++
     })
     setShowPicker(false)
-    if (count) showToast(t(`تم استيراد ${count} ملف`, `${count} file(s) imported`))
+    if (count) showToast(t(`تم استيراد ${count} ملف تجريبي`, `${count} demo file(s) imported`))
     else showToast(t('الملفات موجودة مسبقاً', 'Files already imported'), false)
   }
 
@@ -238,30 +245,44 @@ export function DriveUploader() {
       <div>
         <h1 className="font-display text-3xl text-foreground">{t('المصادر', 'Resources')}</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {t('نظّم موادك في مجلدات، واستورد الملفات عبر Google Drive فقط.', 'Organize your study materials in folders and import files through Google Drive only.')}
+          {t('ارفع ملفاتك من الجهاز الآن، ونظّمها في مجلدات للمذاكرة.', 'Upload files from your computer now and organize them into study folders.')}
         </p>
       </div>
 
-      <motion.div whileHover={{ scale: 1.005 }} onClick={() => setShowPicker(true)}
-        className="relative overflow-hidden rounded-2xl p-10 text-center cursor-pointer border-2 border-dashed border-primary/30 hover:border-primary/60 transition-all"
-        style={{ background: 'linear-gradient(135deg,rgba(26,77,83,0.12),rgba(62,154,166,0.06))' }}>
-        <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2.5, repeat: Infinity }}
-          className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}>
-          <CloudUpload className="w-8 h-8 text-white" />
+      <div className="grid md:grid-cols-2 gap-4">
+        <motion.div whileHover={{ scale: 1.005 }} onClick={() => fileInputRef.current?.click()}
+          className="relative overflow-hidden rounded-2xl p-8 text-center cursor-pointer border-2 border-dashed border-primary/40 hover:border-primary/70 transition-all"
+          style={{ background: 'linear-gradient(135deg,rgba(26,77,83,0.16),rgba(62,154,166,0.08))' }}>
+          <input ref={fileInputRef} type="file" multiple className="hidden" accept=".pdf,.docx,.pptx,image/*" onChange={e => handleLocalFiles(e.target.files)} />
+          <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2.5, repeat: Infinity }}
+            className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}>
+            <UploadCloud className="w-8 h-8 text-white" />
+          </motion.div>
+          <p className="font-semibold text-foreground mb-1">{t('رفع من الجهاز', 'Upload from computer')}</p>
+          <p className="text-sm text-muted-foreground mb-5">
+            {t('يدعم PDF و Word و PowerPoint والصور. مناسب للاستخدام اليومي الآن.', 'Supports PDF, Word, PowerPoint, and images. Best for daily use now.')}
+          </p>
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+            style={{ background: 'linear-gradient(135deg,#1A4D53,#2D7A84)' }}>
+            <Laptop className="w-4 h-4" />{t('اختيار الملفات', 'Choose files')}
+          </div>
         </motion.div>
-        <p className="font-semibold text-foreground mb-1">{t('استيراد عبر Google Drive', 'Import through Google Drive')}</p>
-        <p className="text-sm text-muted-foreground mb-5">
-          {t('اختر ملفًا من Drive أو ارفعه من جهازك داخل نافذة Drive.', 'Choose a Drive file or upload from your computer inside the Drive dialog.')}
-        </p>
-        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-          style={{ background: 'linear-gradient(135deg,#1A4D53,#2D7A84)' }}>
-          <HardDrive className="w-4 h-4" />{t('فتح Google Drive', 'Open Google Drive')}
-        </div>
-        <p className="text-xs text-muted-foreground/60 mt-4">
-          🔒 {t('لا يوجد رفع مباشر إلى خادم الموقع', 'No direct upload to the app server')}
-        </p>
-      </motion.div>
+
+        <motion.div whileHover={{ scale: 1.005 }} onClick={() => setShowPicker(true)}
+          className="relative overflow-hidden rounded-2xl p-8 text-center cursor-pointer border border-border/70 hover:border-primary/40 transition-all bg-muted/30">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-muted border border-border">
+            <CloudUpload className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <p className="font-semibold text-foreground mb-1">{t('Google Drive تجريبي', 'Google Drive demo')}</p>
+          <p className="text-sm text-muted-foreground mb-5">
+            {t('استعراض تجريبي حتى يتم تفعيل Google Picker الحقيقي.', 'Demo import until real Google Picker is enabled.')}
+          </p>
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-border bg-card text-muted-foreground">
+            <HardDrive className="w-4 h-4" />{t('فتح العرض التجريبي', 'Open demo')}
+          </div>
+        </motion.div>
+      </div>
 
       <div className="grid lg:grid-cols-[280px,1fr] gap-5">
         <div className="space-y-4">
@@ -306,8 +327,8 @@ export function DriveUploader() {
             <div className="glass-card rounded-2xl p-12 text-center">
               <HardDrive className="w-12 h-12 text-muted-foreground/25 mx-auto mb-4" />
               <p className="text-muted-foreground text-sm mb-4">{t('لا توجد ملفات هنا بعد', 'No files here yet')}</p>
-              <button onClick={() => setShowPicker(true)} className="btn-teal px-5 py-2">
-                <HardDrive className="w-4 h-4" />{t('فتح Google Drive', 'Open Google Drive')}
+              <button onClick={() => fileInputRef.current?.click()} className="btn-teal px-5 py-2">
+                <UploadCloud className="w-4 h-4" />{t('رفع ملفات', 'Upload files')}
               </button>
             </div>
           ) : (
@@ -323,7 +344,8 @@ export function DriveUploader() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{file.name}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
-                          <HardDrive className="w-3 h-3" /> Google Drive · {formatBytes(file.size)}
+                          {file.source === 'local' ? <Laptop className="w-3 h-3" /> : <HardDrive className="w-3 h-3" />}
+                          {file.source === 'local' ? t('جهازك', 'Computer') : 'Google Drive'} · {formatBytes(file.size)}
                           {file.folderId && <><span>·</span><Folder className="w-3 h-3" />{resourceFolders.find(f => f.id === file.folderId)?.name}</>}
                         </p>
                       </div>
@@ -350,7 +372,7 @@ export function DriveUploader() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-              <button onClick={() => setShowPicker(true)}
+              <button onClick={() => fileInputRef.current?.click()}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border/60 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors">
                 <MoveRight className="w-4 h-4" />{t('إضافة المزيد', 'Add more')}
               </button>
