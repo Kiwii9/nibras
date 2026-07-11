@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, Sparkles, UserPlus, LogIn, AlertCircle, CheckCircle, BookOpen, BrainCircuit, Timer, CalendarCheck } from 'lucide-react'
 import { useStore } from '@/store'
@@ -19,13 +19,39 @@ export function AuthPage() {
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
   const isAr = lang === 'ar'
 
   const t = (ar: string, en: string) => isAr ? ar : en
 
+  useEffect(() => {
+    const hash = window.location.hash.replace(/^#/, '')
+    if (!hash) return
+
+    const params = new URLSearchParams(hash)
+    const errorCode = params.get('error_code')
+    const errorDescription = params.get('error_description')
+
+    if (!errorCode && !errorDescription) return
+
+    const friendlyMessage = errorCode === 'otp_expired'
+      ? t(
+          'رابط التأكيد منتهي أو غير صالح. اطلب رابطاً جديداً بتسجيل الدخول أو إنشاء الحساب مرة أخرى.',
+          'This confirmation link is expired or invalid. Request a fresh link by signing in or creating the account again.'
+        )
+      : t(
+          'تعذر إكمال تسجيل الدخول من الرابط. جرّب تسجيل الدخول مرة أخرى.',
+          'Could not complete sign-in from this link. Please try signing in again.'
+        )
+
+    setLinkError(friendlyMessage)
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+  }, [isAr])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearAuthError()
+    setLinkError(null)
     setLoading(true)
     try {
       if (mode === 'register') {
@@ -41,6 +67,7 @@ export function AuthPage() {
   const switchMode = () => {
     setMode(mode === 'login' ? 'register' : 'login')
     clearAuthError()
+    setLinkError(null)
   }
 
   return (
@@ -136,7 +163,7 @@ export function AuthPage() {
           {/* Mode tabs */}
           <div className="flex bg-muted/50 p-1 rounded-xl mb-6">
             {(['login', 'register'] as const).map(m => (
-              <button key={m} onClick={() => { setMode(m); clearAuthError() }}
+              <button key={m} onClick={() => { setMode(m); clearAuthError(); setLinkError(null) }}
                 className={cn(
                   'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all',
                   mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -205,6 +232,17 @@ export function AuthPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Auth link error */}
+              <AnimatePresence>
+                {linkError && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs px-3 py-2.5 rounded-xl leading-relaxed">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    {linkError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Error */}
               <AnimatePresence>
