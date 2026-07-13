@@ -76,6 +76,9 @@ create index if not exists idx_generated_quizzes_source_material_id on public.ge
 create index if not exists idx_ai_usage_logs_user_id on public.ai_usage_logs(user_id);
 create index if not exists idx_ai_usage_logs_anonymous_key_created_at on public.ai_usage_logs(anonymous_key, created_at desc);
 create index if not exists idx_ai_usage_logs_created_at on public.ai_usage_logs(created_at desc);
+create index if not exists idx_ai_usage_logs_user_created_at
+on public.ai_usage_logs(user_id, created_at desc)
+where user_id is not null;
 create index if not exists idx_bug_reports_user_id on public.bug_reports(user_id);
 create index if not exists idx_bug_reports_status on public.bug_reports(status);
 
@@ -86,8 +89,6 @@ alter table public.generated_quizzes enable row level security;
 alter table public.ai_usage_logs enable row level security;
 alter table public.bug_reports enable row level security;
 
--- Private schema is intentionally not exposed through the Supabase Data API.
--- Keep security-definer helpers and bootstrap allowlists here, not in public.
 create schema if not exists private;
 revoke all on schema private from public;
 
@@ -155,10 +156,7 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
--- The signup trigger must exist in public for auth.users to call it, but it should
--- not be directly callable through the public REST/RPC API.
 revoke execute on function public.handle_new_user() from anon, authenticated, public;
-
 drop function if exists public.is_admin();
 
 create policy "profiles_select_own_or_admin"
@@ -196,9 +194,10 @@ create policy "usage_select_own_or_admin"
 on public.ai_usage_logs for select
 using ((select auth.uid()) = user_id or (select private.is_admin()));
 
-create policy "usage_insert_own_or_anonymous"
+create policy "usage_insert_own"
 on public.ai_usage_logs for insert
-with check ((select auth.uid()) = user_id or user_id is null);
+to authenticated
+with check ((select auth.uid()) = user_id and user_id is not null);
 
 create policy "bug_reports_insert_own_or_anonymous"
 on public.bug_reports for insert
