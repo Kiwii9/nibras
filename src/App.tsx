@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useStore } from '@/store'
+import { useStore, useIsAdmin } from '@/store'
 import { AuthPage } from '@/components/auth/AuthPage'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
@@ -19,6 +19,7 @@ import { ParticleBg } from '@/components/ambient/ParticleBg'
 import { AppErrorBoundary } from '@/components/errors/AppErrorBoundary'
 import { NotFoundPage } from '@/components/errors/NotFoundPage'
 import { LegalPage } from '@/components/legal/LegalPages'
+import { ConsentGate } from '@/components/legal/ConsentGate'
 import { useT } from '@/hooks/useT'
 import { isEnabled } from '@/lib/features'
 
@@ -51,6 +52,11 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
+function AdminRoute() {
+  const isAdmin = useIsAdmin()
+  return isAdmin ? <AdminPanel /> : <NotFoundPage />
+}
+
 function AppLayout() {
   const { t } = useT()
   const location = useLocation()
@@ -74,7 +80,7 @@ function AppLayout() {
             <Route path="/roadmap" element={<RoadmapPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/admin" element={<AdminRoute />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </PageWrapper>
@@ -130,7 +136,13 @@ function AuthGate() {
   useEffect(() => initializeAuth(), [initializeAuth])
 
   if (!authReady) return <AuthLoadingScreen />
-  if (isAuthenticated) return <AppLayout />
+  if (isAuthenticated) {
+    return (
+      <ConsentGate>
+        <AppLayout />
+      </ConsentGate>
+    )
+  }
   return (
     <>
       <AuthPage />
