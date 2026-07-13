@@ -10,24 +10,38 @@ exports.handler = async (event) => {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || ''
   const aiProvider = String(process.env.AI_PROVIDER || 'openrouter').toLowerCase()
   const openRouterModel = process.env.OPENROUTER_MODEL || ''
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+  const supabasePublishableKey =
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    ''
 
   return json(200, {
     ok: true,
     service: 'nibras',
+    release: 'public-beta',
     timestamp: new Date().toISOString(),
+    capabilities: {
+      authenticatedAiRequired: true,
+      persistentUserQuota: true,
+      publicLegalPages: true,
+      productionSmokeTests: true,
+    },
     env: {
       publicSiteUrlConfigured: Boolean(publicSiteUrl),
       allowedOriginConfigured: Boolean(allowedOrigin),
       aiProvider,
+      openRouterModel,
       openRouterModelConfigured: Boolean(openRouterModel),
       openRouterKeyConfigured: Boolean(process.env.OPENROUTER_API_KEY),
       groqKeyConfigured: Boolean(process.env.GROQ_API_KEY),
       geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
-      supabaseUrlConfigured: Boolean(process.env.VITE_SUPABASE_URL),
-      supabasePublishableKeyConfigured: Boolean(process.env.VITE_SUPABASE_PUBLISHABLE_KEY),
+      supabaseUrlConfigured: Boolean(supabaseUrl),
+      supabasePublishableKeyConfigured: Boolean(supabasePublishableKey),
     },
     limits: {
-      dailyIpLimit: Number(process.env.AI_DAILY_IP_LIMIT || 25),
+      dailyUserLimit: Number(process.env.AI_DAILY_USER_LIMIT || process.env.AI_DAILY_IP_LIMIT || 25),
       maxMessages: Number(process.env.AI_MAX_MESSAGES || 16),
       maxPromptChars: Number(process.env.AI_MAX_PROMPT_CHARS || 12000),
       maxOutputTokens: Number(process.env.AI_MAX_OUTPUT_TOKENS || 1800),
@@ -38,7 +52,10 @@ exports.handler = async (event) => {
 function json(statusCode, payload) {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    },
     body: JSON.stringify(payload),
   }
 }
