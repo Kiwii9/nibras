@@ -35,7 +35,7 @@ const supabaseClient = read('src/lib/supabase.ts')
 
 assert(packageJson.scripts?.build === 'tsc && vite build', 'package.json build script must run TypeScript before Vite.')
 assert(packageJson.scripts?.['test:smoke'] === 'node scripts/smoke-test.mjs', 'package.json must expose test:smoke.')
-assert(packageJson.scripts?.['release:check']?.includes('npm run build'), 'package.json must expose release:check with build.')
+assert(packageJson.scripts?.['release:check'] === 'npm run test:smoke && npm run build', 'package.json must expose release:check with smoke test then build.')
 assert(packageJson.dependencies?.['@supabase/supabase-js'], 'package.json must include @supabase/supabase-js.')
 assert(packageLock.packages?.['']?.dependencies?.['@supabase/supabase-js'], 'package-lock.json must include @supabase/supabase-js at root.')
 assert(!exists('pnpm-lock.yaml'), 'pnpm-lock.yaml must not exist because Netlify should use npm/package-lock.')
@@ -44,7 +44,7 @@ assert(!exists('node_modules'), 'node_modules must not be committed.')
 assert(exists('.github/workflows/ci.yml'), 'GitHub Actions CI workflow must exist.')
 
 assertFileContains('netlify.toml', [
-  'command = "npm run build"',
+  'command = "npm run release:check"',
   'publish = "dist"',
   'functions = "netlify/functions"',
   'X-Frame-Options = "DENY"',
