@@ -22,6 +22,9 @@ import { LegalPage } from '@/components/legal/LegalPages'
 import { ConsentGate } from '@/components/legal/ConsentGate'
 import { useT } from '@/hooks/useT'
 import { isEnabled } from '@/lib/features'
+import { scrubLegacyBrowserSecrets } from '@/lib/browserSecurity'
+
+scrubLegacyBrowserSecrets()
 
 type PageKey = 'dashboard' | 'chat' | 'quiz' | 'exams' | 'pomodoro' | 'resources' | 'roadmap' | 'about' | 'settings' | 'admin'
 
