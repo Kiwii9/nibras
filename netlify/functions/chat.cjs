@@ -1,104 +1,108 @@
 // Nibras authenticated AI proxy.
-// Keeps provider keys server-side and enforces persistent per-user limits through Supabase.
+// Provider credentials remain server-side. All real and diagnostic requests require
+// a valid Supabase session; public AI calls are protected by atomic per-user limits.
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 
 const MAX_MESSAGES = Number(process.env.AI_MAX_MESSAGES || 16)
 const MAX_PROMPT_CHARS = Number(process.env.AI_MAX_PROMPT_CHARS || 12000)
 const MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_OUTPUT_TOKENS || 1800)
-const DAILY_USER_LIMIT = Number(process.env.AI_DAILY_USER_LIMIT || process.env.AI_DAILY_IP_LIMIT || 25)
+const ALLOWED_FEATURES = new Set(['chat', 'quiz_generation', 'semantic_grading', 'visual_generation'])
+const ALLOWED_ROLES = new Set(['user', 'assistant', 'system'])
+const ADMIN_ROLES = new Set(['admin', 'developer'])
+const SITE_ORIGIN = process.env.ALLOWED_ORIGIN || process.env.PUBLIC_SITE_URL || 'https://nibras-tutor.netlify.app'
 
 const CORS = {
-  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
+  'Access-Control-Allow-Origin': SITE_ORIGIN,
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
+  'Content-Type': 'application/json; charset=utf-8',
   'Cache-Control': 'no-store',
+  Vary: 'Origin',
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: CORS, body: '' }
-  }
-  if (event.httpMethod !== 'POST') {
-    return json(405, { error: 'method_not_allowed', message: 'Only POST requests are allowed.' })
-  }
+exports.handler = async event => {
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' }
+  if (event.httpMethod !== 'POST') return json(405, { error: 'method_not_allowed', message: 'Only POST requests are allowed.' })
 
   let body
-  try { body = JSON.parse(event.body || '{}') } catch {
+  try {
+    body = JSON.parse(event.body || '{}')
+  } catch {
     return json(400, { error: 'invalid_json', message: 'Invalid request body.' })
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages : []
-  const promptChars = messages.reduce((sum, message) => sum + String(message?.content || '').length, 0)
-  const maxTokens = clampNumber(body.max_tokens || 1200, 64, MAX_OUTPUT_TOKENS)
-  const temperature = typeof body.temperature === 'number'
-    ? Math.min(Math.max(body.temperature, 0), 1.2)
-    : 0.7
-
-  if (messages.length === 0) {
-    return json(400, { error: 'no_messages', message: 'No messages provided.' })
-  }
-  if (messages.length > MAX_MESSAGES) {
-    return json(413, { error: 'too_many_messages', message: `Keep requests under ${MAX_MESSAGES} messages.` })
-  }
-  if (promptChars > MAX_PROMPT_CHARS) {
-    return json(413, { error: 'prompt_too_large', message: `Keep prompts under ${MAX_PROMPT_CHARS} characters.` })
-  }
-
-  // Mock mode is intentionally cost-free and used only by the developer diagnostics panel.
-  if (body.mock === true) {
-    await new Promise(resolve => setTimeout(resolve, clampNumber(body.mockLatency || 300, 0, 3000)))
-    if (body.mockFail) return json(500, { error: 'mock_failure', message: 'Simulated failure' })
-    return json(200, {
-      content: body.mockResponse || '🧪 هذا رد تجريبي من لوحة المطور. Developer diagnostic response.',
-      usage: { prompt_tokens: 42, completion_tokens: 18, total_tokens: 60 },
-      mock: true,
-    })
-  }
+  const validated = validateMessages(body.messages)
+  if (!validated.ok) return json(validated.statusCode, { error: validated.error, message: validated.message })
 
   const auth = await authenticateUser(event)
   if (!auth.ok) return json(auth.statusCode, { error: auth.error, message: auth.message })
 
-  const quota = await getDailyUsage(auth.accessToken, auth.user.id)
-  if (!quota.ok) {
-    return json(503, {
-      error: 'quota_service_unavailable',
-      message: 'AI usage verification is temporarily unavailable. Please try again shortly.',
+  if (body.useCustomKey === true || body.customKey || body.customProvider || body.customModel) {
+    return json(400, {
+      error: 'custom_keys_disabled',
+      message: 'Browser-supplied AI keys are disabled. Nibras uses a server-managed provider.',
     })
   }
-  if (quota.used >= DAILY_USER_LIMIT) {
+
+  if (body.mock === true) {
+    const role = await getProfileRole(auth.accessToken, auth.user.id)
+    if (!ADMIN_ROLES.has(role)) {
+      return json(403, { error: 'admin_required', message: 'Developer diagnostics require an admin or developer role.' })
+    }
+
+    await new Promise(resolve => setTimeout(resolve, clampNumber(body.mockLatency || 250, 0, 2000)))
+    if (body.mockFail) return json(500, { error: 'mock_failure', message: 'Simulated diagnostic failure.' })
+    return json(200, {
+      content: cleanText(body.mockResponse || '🧪 Developer diagnostic response.', 1000),
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      mock: true,
+    })
+  }
+
+  const burst = await consumeRateLimit(auth.accessToken, 'ai_burst')
+  if (!burst.ok) {
+    return json(503, { error: 'rate_limit_service_unavailable', message: 'Request limits could not be verified safely. Try again shortly.' })
+  }
+  if (!burst.allowed) {
+    return json(429, {
+      error: 'rate_limit',
+      message: 'Too many AI requests. Wait before trying again.',
+      limit: burst.limit,
+      remaining: burst.remaining,
+      reset: burst.reset_at,
+    })
+  }
+
+  const daily = await consumeRateLimit(auth.accessToken, 'ai_daily')
+  if (!daily.ok) {
+    return json(503, { error: 'rate_limit_service_unavailable', message: 'Daily limits could not be verified safely. Try again shortly.' })
+  }
+  if (!daily.allowed) {
     return json(429, {
       error: 'rate_limit',
       message: 'Daily beta AI limit reached. Try again tomorrow.',
-      limit: DAILY_USER_LIMIT,
-      remaining: 0,
-      reset: nextUtcDay(),
+      limit: daily.limit,
+      remaining: daily.remaining,
+      reset: daily.reset_at,
     })
   }
 
-  const useCustomKey = body.useCustomKey === true
-  const customKey = String(body.customKey || '').trim()
-  const customProvider = String(body.customProvider || 'openrouter').toLowerCase()
-  const customModel = String(body.customModel || '').trim()
+  const maxTokens = clampNumber(body.max_tokens || 1200, 64, MAX_OUTPUT_TOKENS)
+  const temperature = typeof body.temperature === 'number'
+    ? Math.min(Math.max(body.temperature, 0), 1.2)
+    : 0.7
+  const feature = ALLOWED_FEATURES.has(String(body.feature)) ? String(body.feature) : 'chat'
 
-  const result = useCustomKey && customKey
-    ? await routeCustomKey({
-        provider: customProvider,
-        apiKey: customKey,
-        model: customModel,
-        messages,
-        maxTokens,
-        temperature,
-      })
-    : await routePlatformKey({ messages, maxTokens, temperature })
+  const result = await routePlatformProvider({
+    messages: validated.messages,
+    maxTokens,
+    temperature,
+  })
 
-  if (!result?.response) {
-    return json(502, { error: 'provider_error', message: 'No AI provider response was returned.' })
-  }
+  if (!result?.response) return json(502, { error: 'provider_error', message: 'No AI provider response was returned.' })
 
   if (result.response.statusCode >= 200 && result.response.statusCode < 300) {
     const payload = safeParseJson(result.response.body)
@@ -106,10 +110,10 @@ exports.handler = async (event) => {
 
     await logUsage(auth.accessToken, {
       userId: auth.user.id,
-      feature: String(body.feature || 'chat').slice(0, 80),
+      feature,
       provider: result.provider,
       model: result.model,
-      promptChars,
+      promptChars: validated.promptChars,
       promptTokens: toNullableInteger(usage.prompt_tokens),
       completionTokens: toNullableInteger(usage.completion_tokens),
     })
@@ -117,10 +121,10 @@ exports.handler = async (event) => {
     return json(result.response.statusCode, {
       ...payload,
       quota: {
-        limit: DAILY_USER_LIMIT,
-        used: quota.used + 1,
-        remaining: Math.max(DAILY_USER_LIMIT - quota.used - 1, 0),
-        reset: nextUtcDay(),
+        limit: daily.limit,
+        used: daily.used,
+        remaining: daily.remaining,
+        reset: daily.reset_at,
       },
       provider: result.provider,
       model: result.model,
@@ -130,34 +134,53 @@ exports.handler = async (event) => {
   return result.response
 }
 
-async function authenticateUser(event) {
-  const accessToken = getBearerToken(event)
-  if (!accessToken) {
-    return { ok: false, statusCode: 401, error: 'auth_required', message: 'Please sign in again before using AI features.' }
+function validateMessages(rawMessages) {
+  if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
+    return { ok: false, statusCode: 400, error: 'no_messages', message: 'At least one message is required.' }
+  }
+  if (rawMessages.length > MAX_MESSAGES) {
+    return { ok: false, statusCode: 413, error: 'too_many_messages', message: `Keep requests under ${MAX_MESSAGES} messages.` }
   }
 
-  const config = getSupabaseServerConfig()
-  if (!config) {
-    return { ok: false, statusCode: 503, error: 'supabase_not_configured', message: 'Authentication service is not configured.' }
+  const messages = []
+  let promptChars = 0
+  let systemMessages = 0
+
+  for (const item of rawMessages) {
+    if (!item || typeof item !== 'object' || !ALLOWED_ROLES.has(item.role) || typeof item.content !== 'string') {
+      return { ok: false, statusCode: 400, error: 'invalid_message', message: 'Every message needs a valid role and text content.' }
+    }
+
+    const content = cleanText(item.content, MAX_PROMPT_CHARS)
+    if (!content) return { ok: false, statusCode: 400, error: 'empty_message', message: 'Messages cannot be empty.' }
+    if (item.role === 'system') systemMessages += 1
+    if (systemMessages > 1) return { ok: false, statusCode: 400, error: 'too_many_system_messages', message: 'Only one system message is allowed.' }
+
+    promptChars += content.length
+    if (promptChars > MAX_PROMPT_CHARS) {
+      return { ok: false, statusCode: 413, error: 'prompt_too_large', message: `Keep prompts under ${MAX_PROMPT_CHARS} characters.` }
+    }
+    messages.push({ role: item.role, content })
   }
+
+  return { ok: true, messages, promptChars }
+}
+
+async function authenticateUser(event) {
+  const accessToken = getBearerToken(event)
+  if (!accessToken) return { ok: false, statusCode: 401, error: 'auth_required', message: 'Please sign in again before using AI features.' }
+
+  const config = getSupabaseServerConfig()
+  if (!config) return { ok: false, statusCode: 503, error: 'supabase_not_configured', message: 'Authentication service is not configured.' }
 
   try {
     const response = await fetchWithTimeout(`${config.url}/auth/v1/user`, {
-      headers: {
-        apikey: config.key,
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: { apikey: config.key, Authorization: `Bearer ${accessToken}` },
     }, 10000)
 
-    if (!response.ok) {
-      return { ok: false, statusCode: 401, error: 'invalid_session', message: 'Your session expired. Please sign in again.' }
-    }
-
+    if (!response.ok) return { ok: false, statusCode: 401, error: 'invalid_session', message: 'Your session expired. Please sign in again.' }
     const user = await response.json()
-    if (!user?.id) {
-      return { ok: false, statusCode: 401, error: 'invalid_session', message: 'Your session is invalid. Please sign in again.' }
-    }
-
+    if (!user?.id) return { ok: false, statusCode: 401, error: 'invalid_session', message: 'Your session is invalid. Please sign in again.' }
     return { ok: true, accessToken, user }
   } catch (error) {
     console.error('Supabase auth verification failed', safeError(error))
@@ -165,46 +188,58 @@ async function authenticateUser(event) {
   }
 }
 
-async function getDailyUsage(accessToken, userId) {
+async function getProfileRole(accessToken, userId) {
   const config = getSupabaseServerConfig()
-  if (!config) return { ok: false, used: 0 }
-
-  const start = new Date()
-  start.setUTCHours(0, 0, 0, 0)
-  const query = new URLSearchParams({
-    select: 'id',
-    user_id: `eq.${userId}`,
-    created_at: `gte.${start.toISOString()}`,
-  })
-
+  if (!config) return ''
+  const query = new URLSearchParams({ select: 'role', id: `eq.${userId}`, limit: '1' })
   try {
-    const response = await fetchWithTimeout(`${config.url}/rest/v1/ai_usage_logs?${query.toString()}`, {
+    const response = await fetchWithTimeout(`${config.url}/rest/v1/profiles?${query}`, {
+      headers: { apikey: config.key, Authorization: `Bearer ${accessToken}` },
+    }, 10000)
+    if (!response.ok) return ''
+    const rows = await response.json()
+    return String(rows?.[0]?.role || '')
+  } catch {
+    return ''
+  }
+}
+
+async function consumeRateLimit(accessToken, scope) {
+  const config = getSupabaseServerConfig()
+  if (!config) return { ok: false }
+  try {
+    const response = await fetchWithTimeout(`${config.url}/rest/v1/rpc/consume_rate_limit`, {
+      method: 'POST',
       headers: {
         apikey: config.key,
         Authorization: `Bearer ${accessToken}`,
-        Prefer: 'count=exact',
-        Range: '0-0',
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ p_scope: scope }),
     }, 10000)
-
     if (!response.ok) {
-      console.error('Supabase quota query failed', response.status, await response.text().catch(() => ''))
-      return { ok: false, used: 0 }
+      console.error('Rate-limit RPC failed', response.status)
+      return { ok: false }
     }
-
-    const contentRange = response.headers.get('content-range') || ''
-    const total = Number(contentRange.split('/').pop())
-    return { ok: Number.isFinite(total), used: Number.isFinite(total) ? total : 0 }
+    const data = await response.json()
+    const value = Array.isArray(data) ? data[0] : data
+    return {
+      ok: true,
+      allowed: value?.allowed === true,
+      limit: Number(value?.limit || 0),
+      used: Number(value?.used || 0),
+      remaining: Number(value?.remaining || 0),
+      reset_at: String(value?.reset_at || ''),
+    }
   } catch (error) {
-    console.error('Supabase quota query failed', safeError(error))
-    return { ok: false, used: 0 }
+    console.error('Rate-limit RPC failed', safeError(error))
+    return { ok: false }
   }
 }
 
 async function logUsage(accessToken, entry) {
   const config = getSupabaseServerConfig()
   if (!config) return false
-
   try {
     const response = await fetchWithTimeout(`${config.url}/rest/v1/ai_usage_logs`, {
       method: 'POST',
@@ -224,9 +259,8 @@ async function logUsage(accessToken, entry) {
         completion_tokens: entry.completionTokens,
       }),
     }, 10000)
-
     if (!response.ok) {
-      console.error('Supabase usage log insert failed', response.status, await response.text().catch(() => ''))
+      console.error('Supabase usage log insert failed', response.status)
       return false
     }
     return true
@@ -236,11 +270,10 @@ async function logUsage(accessToken, entry) {
   }
 }
 
-async function routePlatformKey({ messages, maxTokens, temperature }) {
+async function routePlatformProvider({ messages, maxTokens, temperature }) {
   const preferred = String(process.env.AI_PROVIDER || 'openrouter').toLowerCase()
   const candidates = []
   const add = provider => { if (!candidates.includes(provider)) candidates.push(provider) }
-
   add(preferred)
   add('openrouter')
   add('groq')
@@ -255,33 +288,9 @@ async function routePlatformKey({ messages, maxTokens, temperature }) {
   }
 
   return lastResult || {
-    response: json(503, { error: 'platform_key_missing', message: 'No platform AI key configured.' }),
+    response: json(503, { error: 'platform_key_missing', message: 'No platform AI key is configured.' }),
     provider: preferred,
     model: '',
-  }
-}
-
-async function routeCustomKey({ provider, apiKey, model, messages, maxTokens, temperature }) {
-  try {
-    const result = await callProvider(provider, apiKey, model, messages, maxTokens, temperature)
-    if (!isGoodAiResponse(result.response)) {
-      return {
-        response: json(502, {
-          error: 'bad_provider_response',
-          message: 'The selected AI provider returned an empty or debug-only response.',
-        }),
-        provider: result.provider,
-        model: result.model,
-      }
-    }
-    return result
-  } catch (error) {
-    console.error('Custom provider error', provider, safeError(error))
-    return {
-      response: json(502, { error: 'provider_error', message: 'The selected AI provider failed.' }),
-      provider,
-      model,
-    }
   }
 }
 
@@ -308,29 +317,10 @@ async function callPlatformProvider(provider, messages, maxTokens, temperature) 
   return { response: json(503, { error: 'unknown_provider', message: 'Unknown AI provider.' }), provider, model: '' }
 }
 
-async function callProvider(provider, apiKey, model, messages, maxTokens, temperature) {
-  if (provider === 'gemini') {
-    const selectedModel = model || 'gemini-1.5-flash'
-    return { response: await callGemini(apiKey, selectedModel, messages, maxTokens, temperature), provider, model: selectedModel }
-  }
-  if (provider === 'openai') {
-    const selectedModel = model || 'gpt-4o-mini'
-    return { response: await callOpenAI(apiKey, selectedModel, messages, maxTokens, temperature), provider, model: selectedModel }
-  }
-  if (provider === 'groq') {
-    const selectedModel = model || 'llama-3.1-8b-instant'
-    return { response: await callGroq(apiKey, selectedModel, messages, maxTokens, temperature), provider, model: selectedModel }
-  }
-  const selectedModel = cleanOpenRouterModel(model)
-  return { response: await callOpenRouter(apiKey, selectedModel, messages, maxTokens, temperature), provider: 'openrouter', model: selectedModel }
-}
-
 function cleanOpenRouterModel(model) {
   const value = String(model || '').trim()
-  if (!value || value === 'openrouter/free' || value === 'openrouter/auto' || value.endsWith(':free')) {
-    return 'tencent/hy3'
-  }
-  return value
+  if (!value || value === 'openrouter/free' || value === 'openrouter/auto' || value.endsWith(':free')) return 'tencent/hy3'
+  return value.slice(0, 200)
 }
 
 async function callOpenRouter(apiKey, model, messages, maxTokens, temperature) {
@@ -359,12 +349,12 @@ async function callGroq(apiKey, model, messages, maxTokens, temperature) {
 async function callGemini(apiKey, model, messages, maxTokens, temperature) {
   const contents = messages
     .filter(message => message.role !== 'system')
-    .map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(message.content || '') }] }))
+    .map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] }))
   const systemMessage = messages.find(message => message.role === 'system')
   const requestBody = { contents, generationConfig: { maxOutputTokens: maxTokens, temperature } }
-  if (systemMessage) requestBody.systemInstruction = { parts: [{ text: String(systemMessage.content || '') }] }
+  if (systemMessage) requestBody.systemInstruction = { parts: [{ text: systemMessage.content }] }
 
-  const response = await fetchWithTimeout(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
+  const response = await fetchWithTimeout(`${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody),
@@ -373,9 +363,7 @@ async function callGemini(apiKey, model, messages, maxTokens, temperature) {
 
   const data = await response.json()
   const content = extractGeminiText(data)
-  if (!isUsableContent(content)) {
-    return json(502, { error: 'bad_provider_response', message: 'The AI provider returned an empty or debug-only response.' })
-  }
+  if (!isUsableContent(content)) return json(502, { error: 'bad_provider_response', message: 'The AI provider returned an empty or debug-only response.' })
   return json(200, {
     content,
     usage: {
@@ -385,22 +373,11 @@ async function callGemini(apiKey, model, messages, maxTokens, temperature) {
   })
 }
 
-async function callOpenAI(apiKey, model, messages, maxTokens, temperature) {
-  const response = await fetchWithTimeout(OPENAI_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
-  }, 30000)
-  return normalizeOpenAIStyleResponse(response, 'openai')
-}
-
 async function normalizeOpenAIStyleResponse(response, provider) {
   if (!response.ok) return normalizeError(response, provider)
   const data = await response.json()
   const content = String(data?.choices?.[0]?.message?.content || '').trim()
-  if (!isUsableContent(content)) {
-    return json(502, { error: 'bad_provider_response', message: 'The AI provider returned an empty or debug-only response.' })
-  }
+  if (!isUsableContent(content)) return json(502, { error: 'bad_provider_response', message: 'The AI provider returned an empty or debug-only response.' })
   return json(200, { content, usage: data?.usage })
 }
 
@@ -412,8 +389,7 @@ function extractGeminiText(data) {
 
 function isGoodAiResponse(response) {
   if (!response || response.statusCode < 200 || response.statusCode >= 300) return false
-  const payload = safeParseJson(response.body)
-  return isUsableContent(payload?.content)
+  return isUsableContent(safeParseJson(response.body)?.content)
 }
 
 function isUsableContent(content) {
@@ -427,10 +403,10 @@ function isUsableContent(content) {
 }
 
 async function normalizeError(response, provider) {
-  const text = await response.text().catch(() => '')
-  console.error(`${provider} error`, response.status, text.slice(0, 500))
+  await response.text().catch(() => '')
+  console.error(`${provider} request failed`, response.status)
   if (response.status === 429) return json(429, { error: 'rate_limit', message: 'AI provider rate limit reached.' })
-  if (response.status === 401 || response.status === 403) return json(401, { error: 'invalid_key', message: 'Invalid or unauthorized API key.' })
+  if (response.status === 401 || response.status === 403) return json(502, { error: `${provider}_auth_error`, message: 'The configured AI provider rejected its server credential.' })
   return json(502, { error: `${provider}_error`, message: 'The AI provider failed. Try again shortly.' })
 }
 
@@ -457,6 +433,14 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   }
 }
 
+function cleanText(value, maxLength) {
+  return String(value || '')
+    .replace(/\u0000/g, '')
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+}
+
 function clampNumber(value, min, max) {
   const number = Number(value)
   if (!Number.isFinite(number)) return min
@@ -466,13 +450,6 @@ function clampNumber(value, min, max) {
 function toNullableInteger(value) {
   const number = Number(value)
   return Number.isFinite(number) ? Math.round(number) : null
-}
-
-function nextUtcDay() {
-  const date = new Date()
-  date.setUTCDate(date.getUTCDate() + 1)
-  date.setUTCHours(0, 0, 0, 0)
-  return date.toISOString()
 }
 
 function safeParseJson(value) {
