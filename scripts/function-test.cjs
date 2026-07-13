@@ -61,7 +61,10 @@ async function run() {
     assert.equal(JSON.parse(duplicateSystem.body).error, 'too_many_system_messages')
 
     const tooLarge = await invoke('POST', {
-      messages: [{ role: 'user', content: 'x'.repeat(12001) }],
+      messages: [
+        { role: 'user', content: 'x'.repeat(7000) },
+        { role: 'assistant', content: 'y'.repeat(7000) },
+      ],
     })
     assert.equal(tooLarge.statusCode, 413)
     assert.equal(JSON.parse(tooLarge.body).error, 'prompt_too_large')
