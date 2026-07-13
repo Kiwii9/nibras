@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useStore } from '@/store'
 import { AuthPage } from '@/components/auth/AuthPage'
@@ -16,22 +16,25 @@ import { RoadmapPage } from '@/components/roadmap/Roadmap'
 import { AboutPage } from '@/components/about/About'
 import { AdminPanel } from '@/components/admin/AdminPanel'
 import { ParticleBg } from '@/components/ambient/ParticleBg'
+import { AppErrorBoundary } from '@/components/errors/AppErrorBoundary'
+import { NotFoundPage } from '@/components/errors/NotFoundPage'
+import { LegalPage } from '@/components/legal/LegalPages'
 import { useT } from '@/hooks/useT'
 import { isEnabled } from '@/lib/features'
 
-type PageKey = 'dashboard'|'chat'|'quiz'|'exams'|'pomodoro'|'resources'|'roadmap'|'about'|'settings'|'admin'
+type PageKey = 'dashboard' | 'chat' | 'quiz' | 'exams' | 'pomodoro' | 'resources' | 'roadmap' | 'about' | 'settings' | 'admin'
 
 const PAGE_TITLES: Record<string, PageKey> = {
-  '/':          'dashboard',
-  '/chat':      'chat',
-  '/quiz':      'quiz',
-  '/exams':     'exams',
-  '/pomodoro':  'pomodoro',
+  '/': 'dashboard',
+  '/chat': 'chat',
+  '/quiz': 'quiz',
+  '/exams': 'exams',
+  '/pomodoro': 'pomodoro',
   '/resources': 'resources',
-  '/roadmap':   'roadmap',
-  '/about':     'about',
-  '/settings':  'settings',
-  '/admin':     'admin',
+  '/roadmap': 'roadmap',
+  '/about': 'about',
+  '/settings': 'settings',
+  '/admin': 'admin',
 }
 
 function PageWrapper({ children }: { children: React.ReactNode }) {
@@ -62,17 +65,17 @@ function AppLayout() {
         <Topbar onMenuOpen={() => setSidebarOpen(true)} pageTitle={t(pageKey)} />
         <PageWrapper>
           <Routes>
-            <Route path="/"          element={<Dashboard />} />
-            <Route path="/chat"      element={<Chatbot />} />
-            <Route path="/quiz"      element={<QuizEngine />} />
-            <Route path="/exams"     element={<ExamTracker />} />
-            <Route path="/pomodoro"  element={<Pomodoro />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/chat" element={<Chatbot />} />
+            <Route path="/quiz" element={<QuizEngine />} />
+            <Route path="/exams" element={<ExamTracker />} />
+            <Route path="/pomodoro" element={<Pomodoro />} />
             <Route path="/resources" element={<DriveUploader />} />
-            <Route path="/roadmap"   element={<RoadmapPage />} />
-            <Route path="/about"     element={<AboutPage />} />
-            <Route path="/settings"  element={<SettingsPage />} />
-            <Route path="/admin"     element={<AdminPanel />} />
-            <Route path="*"          element={<Dashboard />} />
+            <Route path="/roadmap" element={<RoadmapPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </PageWrapper>
       </div>
@@ -109,23 +112,51 @@ function AuthLoadingScreen() {
   )
 }
 
+function PublicLegalLinks() {
+  return (
+    <nav aria-label="Legal" className="fixed bottom-3 start-1/2 -translate-x-1/2 z-50 flex items-center gap-3 text-[11px] text-muted-foreground bg-card/90 backdrop-blur px-3 py-1.5 rounded-full border border-border shadow-sm">
+      <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy · الخصوصية</Link>
+      <span aria-hidden>·</span>
+      <Link to="/terms" className="hover:text-foreground hover:underline">Terms · الشروط</Link>
+    </nav>
+  )
+}
+
 function AuthGate() {
-  const isAuthenticated = useStore(s => s.isAuthenticated)
-  const authReady = useStore(s => s.authReady)
-  const initializeAuth = useStore(s => s.initializeAuth)
+  const isAuthenticated = useStore(state => state.isAuthenticated)
+  const authReady = useStore(state => state.authReady)
+  const initializeAuth = useStore(state => state.initializeAuth)
 
   useEffect(() => initializeAuth(), [initializeAuth])
 
   if (!authReady) return <AuthLoadingScreen />
-  return isAuthenticated ? <AppLayout /> : <AuthPage />
+  if (isAuthenticated) return <AppLayout />
+  return (
+    <>
+      <AuthPage />
+      <PublicLegalLinks />
+    </>
+  )
+}
+
+function RootRoutes() {
+  return (
+    <Routes>
+      <Route path="/privacy" element={<LegalPage type="privacy" />} />
+      <Route path="/terms" element={<LegalPage type="terms" />} />
+      <Route path="*" element={<AuthGate />} />
+    </Routes>
+  )
 }
 
 export default function App() {
   return (
-    <ThemeDirectionProvider>
-      <BrowserRouter>
-        <AuthGate />
-      </BrowserRouter>
-    </ThemeDirectionProvider>
+    <AppErrorBoundary>
+      <ThemeDirectionProvider>
+        <BrowserRouter>
+          <RootRoutes />
+        </BrowserRouter>
+      </ThemeDirectionProvider>
+    </AppErrorBoundary>
   )
 }
