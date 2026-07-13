@@ -1,3 +1,4 @@
+# Frontend Supabase values are injected by Netlify at build time.
 [build]
   command = "npm run release:check"
   publish = "dist"
