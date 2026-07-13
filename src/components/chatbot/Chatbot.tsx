@@ -18,39 +18,52 @@ import remarkGfm from 'remark-gfm'
 import { VisualRenderer } from './VisualRenderer'
 import { RateLimitCard } from './RateLimitCard'
 
-// ─── Visual data stored per message ──────────────────────────────────────────
 type VisualType = 'mindmap' | 'diagram' | 'timeline' | 'table'
 interface VisualPayload { type: VisualType; data: any }
-const visualCache = new Map<string, VisualPayload>() // msgId → visual
+const visualCache = new Map<string, VisualPayload>()
 
-// ─── Error classifier ─────────────────────────────────────────────────────────
-type ErrorKind = 'rate_limit' | 'platform_key_missing' | 'invalid_key' | 'provider' | 'network' | 'generic'
+type ErrorKind =
+  | 'rate_limit'
+  | 'platform_key_missing'
+  | 'invalid_key'
+  | 'auth'
+  | 'quota'
+  | 'provider'
+  | 'network'
+  | 'generic'
 
 function classifyError(raw: string): ErrorKind {
-  const m = raw.toLowerCase()
-  if (m.includes('rate_limit') || m.includes('rate limit') || m.includes('429') || m.includes('too many')) return 'rate_limit'
-  if (m.includes('platform_key_missing')) return 'platform_key_missing'
-  if (m.includes('401') || m.includes('invalid_key') || m.includes('unauthorized')) return 'invalid_key'
-  if (m.includes('provider_error') || m.includes('provider failed') || m.includes('bad_provider_response') || m.includes('openrouter') || m.includes('gemini') || m.includes('groq')) return 'provider'
-  if (m.includes('network') || m.includes('fetch') || m.includes('failed to fetch')) return 'network'
+  const message = raw.toLowerCase()
+  if (message.includes('rate_limit') || message.includes('rate limit') || message.includes('429') || message.includes('too many')) return 'rate_limit'
+  if (message.includes('auth_required') || message.includes('invalid_session') || message.includes('session expired')) return 'auth'
+  if (message.includes('quota_service_unavailable')) return 'quota'
+  if (message.includes('platform_key_missing')) return 'platform_key_missing'
+  if (message.includes('401') || message.includes('invalid_key') || message.includes('unauthorized')) return 'invalid_key'
+  if (message.includes('provider_error') || message.includes('provider failed') || message.includes('bad_provider_response') || message.includes('openrouter') || message.includes('gemini') || message.includes('groq')) return 'provider'
+  if (message.includes('network') || message.includes('fetch') || message.includes('failed to fetch')) return 'network'
   return 'generic'
 }
 
 function friendlyText(kind: ErrorKind, isAr: boolean): string {
   if (kind === 'invalid_key') return isAr ? 'مفتاح API غير صحيح. تحقق من الإعدادات.' : 'Invalid API key. Check Settings.'
+  if (kind === 'auth') return isAr
+    ? 'انتهت جلسة تسجيل الدخول. سجّل الخروج ثم ادخل مرة أخرى.'
+    : 'Your login session expired. Sign out, then sign in again.'
+  if (kind === 'quota') return isAr
+    ? 'تعذر التحقق من حد الاستخدام بأمان. جرّب مرة أخرى بعد قليل.'
+    : 'The usage limit could not be verified safely. Try again shortly.'
   if (kind === 'provider') return isAr
-    ? 'مزود الذكاء الاصطناعي رفض الطلب أو أعاد خطأ. تم تحديث النموذج، جرّب مرة أخرى بعد تحديث الصفحة. إذا تكرر الخطأ فغالباً يحتاج مفتاح OpenRouter إلى رصيد أو تبديل نموذج.'
-    : 'The AI provider rejected the request or returned an error. The model was updated; refresh and try again. If it continues, the OpenRouter key may need credits or a different model.'
+    ? 'مزود الذكاء الاصطناعي لم يكمل الطلب. جرّب مرة أخرى بعد لحظات.'
+    : 'The AI provider could not complete the request. Try again in a moment.'
   if (kind === 'network') return isAr ? 'خطأ في الاتصال. تحقق من الإنترنت.' : 'Network error. Check your connection.'
-  return isAr ? 'تعذر تشغيل المساعد الآن. جرّب تحديث الصفحة أو تغيير مزود الذكاء الاصطناعي.' : 'The assistant could not run right now. Refresh the page or change the AI provider.'
+  return isAr ? 'تعذر تشغيل المساعد الآن. جرّب تحديث الصفحة.' : 'The assistant could not run right now. Refresh and try again.'
 }
 
-// ─── Visual command quick buttons ─────────────────────────────────────────────
 const VISUAL_CMDS = [
-  { icon: BrainCircuit, ar: 'خريطة ذهنية', en: 'Mind Map',  cmd: 'mind map' },
-  { icon: GitBranch,    ar: 'مخطط انسيابي',en: 'Flowchart', cmd: 'explain visually as a diagram' },
-  { icon: Clock4,       ar: 'جدول زمني',   en: 'Timeline',  cmd: 'timeline' },
-  { icon: Table2,       ar: 'جدول مقارنة', en: 'Compare',   cmd: 'comparison table' },
+  { icon: BrainCircuit, ar: 'خريطة ذهنية', en: 'Mind Map', cmd: 'mind map' },
+  { icon: GitBranch, ar: 'مخطط انسيابي', en: 'Flowchart', cmd: 'explain visually as a diagram' },
+  { icon: Clock4, ar: 'جدول زمني', en: 'Timeline', cmd: 'timeline' },
+  { icon: Table2, ar: 'جدول مقارنة', en: 'Compare', cmd: 'comparison table' },
 ]
 
 function TypingIndicator() {
@@ -62,9 +75,9 @@ function TypingIndicator() {
       </div>
       <div className="chat-bubble-ai px-4 py-3">
         <div className="flex gap-1 items-center">
-          {[0,1,2].map(i => (
-            <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/60"
-              animate={{ y: [0,-4,0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
+          {[0, 1, 2].map(index => (
+            <motion.div key={index} className="w-1.5 h-1.5 rounded-full bg-primary/60"
+              animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: index * 0.15 }} />
           ))}
         </div>
       </div>
@@ -94,7 +107,6 @@ function ChatMessage({ msg, isAr }: { msg: Message; isAr: boolean }) {
             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
-        {/* Visual rendered below the AI bubble */}
         {visual && !isUser && <VisualRenderer type={visual.type} data={visual.data} isAr={isAr} />}
       </div>
     </motion.div>
@@ -110,19 +122,21 @@ export function Chatbot() {
     incrementMessageCount, dailyMessageCount
   } = useStore()
 
-  const [input, setInput]               = useState('')
-  const [loading, setLoading]           = useState(false)
-  const [errorKind, setErrorKind]       = useState<ErrorKind | null>(null)
-  const [errorText, setErrorText]       = useState('')
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [errorKind, setErrorKind] = useState<ErrorKind | null>(null)
+  const [errorText, setErrorText] = useState('')
   const [selectedFileId, setSelectedFileId] = useState('')
   const [generatingVisual, setGeneratingVisual] = useState(false)
+  const [serverQuotaUsed, setServerQuotaUsed] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef    = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const activeSession = chatSessions.find(s => s.id === activeChatId) ?? null
-  const usePlatform   = !apiConfig.useCustomKey
-  const hasKey        = usePlatform || !!apiConfig.apiKey
-  const DAILY_LIMIT   = 50
+  const activeSession = chatSessions.find(session => session.id === activeChatId) ?? null
+  const usePlatform = !apiConfig.useCustomKey
+  const hasKey = usePlatform || !!apiConfig.apiKey
+  const DAILY_LIMIT = 25
+  const displayedUsage = serverQuotaUsed ?? Math.min(dailyMessageCount, DAILY_LIMIT)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -131,27 +145,33 @@ export function Chatbot() {
   const clearError = () => { setErrorKind(null); setErrorText('') }
 
   const createSession = () => {
-    const s: ChatSession = {
+    const session: ChatSession = {
       id: `chat-${Date.now()}`,
       title: lang === 'ar' ? 'محادثة جديدة' : 'New Chat',
-      messages: [], fileIds: selectedFileId ? [selectedFileId] : [],
+      messages: [],
+      fileIds: selectedFileId ? [selectedFileId] : [],
       createdAt: new Date().toISOString(),
     }
-    addChatSession(s)
+    addChatSession(session)
   }
 
-  // ── Generate visual from a topic ────────────────────────────────────────────
-  const generateVisual = async (msgId: string, topic: string, type: VisualType) => {
+  const generateVisual = async (messageId: string, topic: string, type: VisualType) => {
     setGeneratingVisual(true)
     try {
       const prompt = buildVisualPrompt(topic, type)
-      const res = await callLLM([{ role: 'user', content: prompt }], usePlatform ? undefined : apiConfig, { maxTokens: 800, temperature: 0.4 })
-      const parsed = JSON.parse(extractJson(res.content))
-      visualCache.set(msgId, { type, data: parsed })
-    } catch (err) {
-      console.warn('Visual generation failed:', err)
+      const response = await callLLM(
+        [{ role: 'user', content: prompt }],
+        usePlatform ? undefined : apiConfig,
+        { maxTokens: 800, temperature: 0.4, feature: 'visual_generation' }
+      )
+      const parsed = JSON.parse(extractJson(response.content))
+      visualCache.set(messageId, { type, data: parsed })
+      if (response.quota) setServerQuotaUsed(response.quota.used)
+    } catch (error) {
+      console.warn('Visual generation failed:', error)
+    } finally {
+      setGeneratingVisual(false)
     }
-    setGeneratingVisual(false)
   }
 
   const sendMessage = async (overrideInput?: string) => {
@@ -160,13 +180,16 @@ export function Chatbot() {
     clearError()
 
     if (!hasKey) { setErrorKind('platform_key_missing'); return }
-    if (dailyMessageCount >= DAILY_LIMIT && !apiConfig.useCustomKey) {
-      setErrorKind('rate_limit'); return
+    if (serverQuotaUsed !== null && serverQuotaUsed >= DAILY_LIMIT && !apiConfig.useCustomKey) {
+      setErrorKind('rate_limit')
+      return
     }
 
-    const userMsg: Message = {
-      id: `msg-${Date.now()}`, role: 'user',
-      content: text, timestamp: new Date().toISOString(),
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString(),
     }
 
     let session = activeSession
@@ -174,45 +197,46 @@ export function Chatbot() {
       session = {
         id: `chat-${Date.now()}`,
         title: text.slice(0, 40),
-        messages: [], fileIds: selectedFileId ? [selectedFileId] : [],
+        messages: [],
+        fileIds: selectedFileId ? [selectedFileId] : [],
         createdAt: new Date().toISOString(),
       }
       addChatSession(session)
     }
 
-    const newMessages = [...session.messages, userMsg]
+    const newMessages = [...session.messages, userMessage]
     updateChatSession(session.id, newMessages)
     setInput('')
     setLoading(true)
 
-    // Detect visual command
     const visualType = detectVisualCommand(text)
 
     try {
-      const ctx = files.find(f => f.id === selectedFileId)?.content ?? ''
+      const context = files.find(file => file.id === selectedFileId)?.content ?? ''
       const llmMessages = [
-        { role: 'system' as const, content: buildChatSystemPrompt(ctx, lang) },
-        ...newMessages.slice(-10).map(m => ({ role: m.role as 'user'|'assistant', content: m.content })),
+        { role: 'system' as const, content: buildChatSystemPrompt(context, lang) },
+        ...newMessages.slice(-10).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content })),
       ]
 
       const keyConfig = usePlatform ? undefined : apiConfig
-      const response = await callLLM(llmMessages, keyConfig, { maxTokens: 1000 })
+      const response = await callLLM(llmMessages, keyConfig, { maxTokens: 1000, feature: 'chat' })
       incrementMessageCount()
+      if (response.quota) setServerQuotaUsed(response.quota.used)
 
-      const assistantMsg: Message = {
-        id: `msg-${Date.now() + 1}`, role: 'assistant',
-        content: response.content, timestamp: new Date().toISOString(),
+      const assistantMessage: Message = {
+        id: `msg-${Date.now() + 1}`,
+        role: 'assistant',
+        content: response.content,
+        timestamp: new Date().toISOString(),
       }
-      updateChatSession(session.id, [...newMessages, assistantMsg])
+      updateChatSession(session.id, [...newMessages, assistantMessage])
 
-      // If visual command — generate visual for this message
       if (visualType) {
-        // Extract topic from user text
         const topic = text.replace(/mind map|خريطة ذهنية|diagram|مخطط|timeline|جدول زمني|explain visually|اشرح بصرياً|comparison|مقارنة/gi, '').trim() || text
-        generateVisual(assistantMsg.id, topic, visualType)
+        void generateVisual(assistantMessage.id, topic, visualType)
       }
-    } catch (err: any) {
-      const kind = classifyError(err?.message ?? '')
+    } catch (error) {
+      const kind = classifyError(error instanceof Error ? error.message : String(error))
       setErrorKind(kind)
       if (kind !== 'rate_limit' && kind !== 'platform_key_missing') {
         setErrorText(friendlyText(kind, isAr))
@@ -222,13 +246,15 @@ export function Chatbot() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void sendMessage()
+    }
   }
 
   return (
     <div className="h-[calc(100vh-3.5rem)] flex">
-      {/* Sessions sidebar */}
       <div className="hidden md:flex flex-col w-56 border-e border-border/50 bg-card/50 shrink-0">
         <div className="p-3 border-b border-border/40">
           <button onClick={createSession} className="btn-teal w-full text-sm py-2">
@@ -238,38 +264,39 @@ export function Chatbot() {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {chatSessions.length === 0
             ? <p className="text-xs text-muted-foreground text-center p-4 mt-4">{t('noData')}</p>
-            : chatSessions.map(s => (
-              <button key={s.id} onClick={() => setActiveChatId(s.id)}
-                className={cn('w-full text-start px-3 py-2 rounded-lg text-xs transition-colors group flex items-start gap-2',
-                  activeChatId === s.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground')}>
-                <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                <span className="truncate flex-1">{s.title}</span>
-                <button onClick={e => { e.stopPropagation(); deleteChatSession(s.id) }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive">
+            : chatSessions.map(session => (
+              <div key={session.id}
+                className={cn('w-full rounded-lg text-xs transition-colors group flex items-center gap-1',
+                  activeChatId === session.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground')}>
+                <button onClick={() => setActiveChatId(session.id)}
+                  className="flex-1 min-w-0 text-start px-3 py-2 flex items-start gap-2 rounded-lg">
+                  <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span className="truncate flex-1">{session.title}</span>
+                </button>
+                <button onClick={() => deleteChatSession(session.id)}
+                  aria-label={isAr ? 'حذف المحادثة' : 'Delete conversation'}
+                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-2 me-1 hover:text-destructive">
                   <Trash2 className="w-3 h-3" />
                 </button>
-              </button>
+              </div>
             ))}
         </div>
-        {/* Daily usage indicator */}
         {!apiConfig.useCustomKey && (
           <div className="p-3 border-t border-border/40 space-y-1.5">
             <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>{isAr ? 'الاستخدام اليومي' : 'Daily usage'}</span>
-              <span>{dailyMessageCount}/{DAILY_LIMIT}</span>
+              <span>{displayedUsage}/{DAILY_LIMIT}</span>
             </div>
             <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
               <motion.div className="h-full rounded-full"
-                style={{ background: dailyMessageCount > DAILY_LIMIT * 0.8 ? '#EF4444' : '#2D7A84' }}
-                animate={{ width: `${Math.min((dailyMessageCount / DAILY_LIMIT) * 100, 100)}%` }} />
+                style={{ background: displayedUsage > DAILY_LIMIT * 0.8 ? '#EF4444' : '#2D7A84' }}
+                animate={{ width: `${Math.min((displayedUsage / DAILY_LIMIT) * 100, 100)}%` }} />
             </div>
           </div>
         )}
       </div>
 
-      {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/40">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full flex items-center justify-center"
@@ -282,20 +309,19 @@ export function Chatbot() {
             )}
           </div>
           <div className="relative shrink-0">
-            <select value={selectedFileId} onChange={e => setSelectedFileId(e.target.value)}
+            <select value={selectedFileId} onChange={event => setSelectedFileId(event.target.value)}
               className="text-xs bg-muted border border-border rounded-lg px-3 py-1.5 appearance-none cursor-pointer pe-7">
               <option value="">{t('selectFile')}</option>
-              {files.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {files.map(file => <option key={file.id} value={file.id}>{file.name}</option>)}
             </select>
             <ChevronDown className={cn('w-3 h-3 absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none', isRTL ? 'left-2' : 'right-2')} />
           </div>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {!activeSession ? (
             <div className="h-full flex flex-col items-center justify-center text-center gap-4">
-              <motion.div animate={{ y: [0,-6,0] }} transition={{ duration: 3, repeat: Infinity }}
+              <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }}
                 className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-teal"
                 style={{ background: 'linear-gradient(135deg,#0B2428,#3E9AA6)' }}>
                 <Bot className="w-8 h-8 text-white" />
@@ -305,10 +331,9 @@ export function Chatbot() {
                 <p className="text-sm text-muted-foreground max-w-xs" dir="auto">{t('chatWelcome')}</p>
               </div>
 
-              {/* Visual quick-start buttons */}
               <div className="grid grid-cols-2 gap-2 w-full max-w-xs mt-2">
                 {VISUAL_CMDS.map(({ icon: Icon, ar, en, cmd }) => (
-                  <button key={cmd} onClick={() => { createSession(); setTimeout(() => sendMessage(cmd), 100) }}
+                  <button key={cmd} onClick={() => void sendMessage(cmd)}
                     className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-start">
                     <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
                     {isAr ? ar : en}
@@ -334,7 +359,7 @@ export function Chatbot() {
               <p className="text-muted-foreground text-sm text-center" dir="auto">{t('chatWelcome')}</p>
               <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
                 {VISUAL_CMDS.map(({ icon: Icon, ar, en, cmd }) => (
-                  <button key={cmd} onClick={() => sendMessage(cmd)}
+                  <button key={cmd} onClick={() => void sendMessage(cmd)}
                     className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-start">
                     <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
                     {isAr ? ar : en}
@@ -344,14 +369,13 @@ export function Chatbot() {
             </div>
           ) : (
             <>
-              {activeSession.messages.map(msg => <ChatMessage key={msg.id} msg={msg} isAr={isAr} />)}
+              {activeSession.messages.map(message => <ChatMessage key={message.id} msg={message} isAr={isAr} />)}
               {loading && <TypingIndicator />}
               <div ref={messagesEndRef} />
             </>
           )}
         </div>
 
-        {/* Rate limit / error cards */}
         <AnimatePresence>
           {(errorKind === 'rate_limit' || errorKind === 'platform_key_missing') && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -371,19 +395,22 @@ export function Chatbot() {
           )}
         </AnimatePresence>
 
-        {/* Input */}
         <div className="p-4 border-t border-border/50 bg-card/40">
           <div className="flex gap-2 items-end">
-            <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)}
+            <textarea ref={textareaRef} value={input} onChange={event => setInput(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={hasKey ? t('chatPlaceholder') : (isAr ? 'أضف مفتاح API في الإعدادات...' : 'Add API key in Settings...')}
               disabled={loading} rows={1} dir="auto"
               className={cn('flex-1 resize-none rounded-xl px-4 py-2.5 text-sm bg-muted border border-border focus:outline-none focus:ring-2 focus:ring-primary/40 max-h-32 transition-colors', loading && 'opacity-60 cursor-wait')}
               style={{ minHeight: '44px' }}
-              onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 128) + 'px' }}
+              onInput={event => {
+                const element = event.currentTarget
+                element.style.height = 'auto'
+                element.style.height = Math.min(element.scrollHeight, 128) + 'px'
+              }}
               onClick={clearError}
             />
-            <motion.button whileTap={{ scale: 0.92 }} onClick={() => sendMessage()}
+            <motion.button whileTap={{ scale: 0.92 }} onClick={() => void sendMessage()}
               disabled={!input.trim() || loading}
               className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all',
                 input.trim() && !loading ? 'btn-teal' : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50')}>
