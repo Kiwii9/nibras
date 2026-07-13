@@ -6,6 +6,8 @@ Run before every release:
 
 ```bash
 npm ci
+npm run test:smoke
+npm run test:functions
 npm run release:check
 npm run test:production
 ```
