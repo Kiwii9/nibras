@@ -2,93 +2,148 @@ import { useEffect, useRef } from 'react'
 import { useStore } from '@/store'
 
 interface Particle {
-  x: number; y: number; vx: number; vy: number
-  size: number; opacity: number; pulse: number; pulseSpeed: number
+  x: number
+  y: number
+  vx: number
+  vy: number
+  size: number
+  opacity: number
+  pulse: number
+  pulseSpeed: number
+}
+
+interface NavigatorWithHints extends Navigator {
+  deviceMemory?: number
+  connection?: { saveData?: boolean; effectiveType?: string }
 }
 
 export function ParticleBg() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { theme } = useStore()
-  const animRef = useRef<number>(0)
+  const animationRef = useRef<number>(0)
   const particlesRef = useRef<Particle[]>([])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const context = canvas.getContext('2d', { alpha: true })
+    if (!context) return
+
+    const navigatorHints = navigator as NavigatorWithHints
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const saveData = navigatorHints.connection?.saveData === true
+    const slowNetwork = ['slow-2g', '2g'].includes(navigatorHints.connection?.effectiveType ?? '')
+    const lowMemory = (navigatorHints.deviceMemory ?? 8) <= 4
+    const lowCpu = (navigator.hardwareConcurrency ?? 8) <= 4
+    const lowEnd = saveData || slowNetwork || lowMemory || lowCpu
+
+    if (reducedMotion || saveData) {
+      canvas.hidden = true
+      return
+    }
+
+    const particleCount = lowEnd ? 12 : 30
+    const drawConnections = !lowEnd
+    let running = true
+    let lastFrame = 0
+    const minimumFrameGap = lowEnd ? 1000 / 24 : 1000 / 45
 
     const resize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      const ratio = Math.min(window.devicePixelRatio || 1, lowEnd ? 1 : 1.5)
+      canvas.width = Math.max(1, Math.floor(window.innerWidth * ratio))
+      canvas.height = Math.max(1, Math.floor(window.innerHeight * ratio))
+      canvas.style.width = `${window.innerWidth}px`
+      canvas.style.height = `${window.innerHeight}px`
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
     }
-    resize()
-    window.addEventListener('resize', resize)
 
-    // Init particles
-    const COUNT = 38
-    particlesRef.current = Array.from({ length: COUNT }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: (Math.random() - 0.5) * 0.25,
-      size: Math.random() * 2.5 + 0.5,
-      opacity: Math.random() * 0.35 + 0.05,
+    resize()
+    window.addEventListener('resize', resize, { passive: true })
+
+    particlesRef.current = Array.from({ length: particleCount }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: (Math.random() - 0.5) * 0.2,
+      size: Math.random() * 2 + 0.5,
+      opacity: Math.random() * 0.25 + 0.04,
       pulse: Math.random() * Math.PI * 2,
-      pulseSpeed: Math.random() * 0.012 + 0.004,
+      pulseSpeed: Math.random() * 0.01 + 0.003,
     }))
 
     const color = theme === 'dark' ? '98,184,194' : '45,122,132'
 
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const draw = (timestamp: number) => {
+      if (!running) return
+      if (timestamp - lastFrame < minimumFrameGap) {
+        animationRef.current = requestAnimationFrame(draw)
+        return
+      }
+      lastFrame = timestamp
+      context.clearRect(0, 0, window.innerWidth, window.innerHeight)
 
-      particlesRef.current.forEach(p => {
-        p.pulse += p.pulseSpeed
-        p.x += p.vx
-        p.y += p.vy
-        if (p.x < 0) p.x = canvas.width
-        if (p.x > canvas.width) p.x = 0
-        if (p.y < 0) p.y = canvas.height
-        if (p.y > canvas.height) p.y = 0
+      for (const particle of particlesRef.current) {
+        particle.pulse += particle.pulseSpeed
+        particle.x += particle.vx
+        particle.y += particle.vy
+        if (particle.x < 0) particle.x = window.innerWidth
+        if (particle.x > window.innerWidth) particle.x = 0
+        if (particle.y < 0) particle.y = window.innerHeight
+        if (particle.y > window.innerHeight) particle.y = 0
 
-        const o = p.opacity * (0.7 + 0.3 * Math.sin(p.pulse))
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${color},${o})`
-        ctx.fill()
-      })
+        const opacity = particle.opacity * (0.75 + 0.25 * Math.sin(particle.pulse))
+        context.beginPath()
+        context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2)
+        context.fillStyle = `rgba(${color},${opacity})`
+        context.fill()
+      }
 
-      // Draw faint connecting lines between nearby particles
-      particlesRef.current.forEach((a, i) => {
-        particlesRef.current.slice(i + 1).forEach(b => {
-          const dx = a.x - b.x, dy = a.y - b.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 110) {
-            ctx.beginPath()
-            ctx.moveTo(a.x, a.y)
-            ctx.lineTo(b.x, b.y)
-            ctx.strokeStyle = `rgba(${color},${0.06 * (1 - dist / 110)})`
-            ctx.lineWidth = 0.5
-            ctx.stroke()
+      if (drawConnections) {
+        const particles = particlesRef.current
+        for (let index = 0; index < particles.length; index++) {
+          for (let otherIndex = index + 1; otherIndex < particles.length; otherIndex++) {
+            const first = particles[index]
+            const second = particles[otherIndex]
+            const deltaX = first.x - second.x
+            const deltaY = first.y - second.y
+            const distanceSquared = deltaX * deltaX + deltaY * deltaY
+            if (distanceSquared < 100 * 100) {
+              const distance = Math.sqrt(distanceSquared)
+              context.beginPath()
+              context.moveTo(first.x, first.y)
+              context.lineTo(second.x, second.y)
+              context.strokeStyle = `rgba(${color},${0.045 * (1 - distance / 100)})`
+              context.lineWidth = 0.5
+              context.stroke()
+            }
           }
-        })
-      })
+        }
+      }
 
-      animRef.current = requestAnimationFrame(draw)
+      animationRef.current = requestAnimationFrame(draw)
     }
 
-    draw()
+    const handleVisibility = () => {
+      running = !document.hidden
+      if (running) animationRef.current = requestAnimationFrame(draw)
+      else cancelAnimationFrame(animationRef.current)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    animationRef.current = requestAnimationFrame(draw)
 
     return () => {
-      cancelAnimationFrame(animRef.current)
+      running = false
+      cancelAnimationFrame(animationRef.current)
       window.removeEventListener('resize', resize)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [theme])
 
   return (
     <canvas ref={canvasRef}
+      aria-hidden="true"
       className="fixed inset-0 pointer-events-none z-0"
-      style={{ opacity: theme === 'dark' ? 0.6 : 0.35 }} />
+      style={{ opacity: theme === 'dark' ? 0.5 : 0.28 }} />
   )
 }
