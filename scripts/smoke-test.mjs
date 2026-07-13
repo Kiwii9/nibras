@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 const root = process.cwd()
 const failures = []
@@ -19,6 +20,18 @@ function excludes(file, snippets) {
   for (const snippet of snippets) assert(!content.includes(snippet), `${file} must not contain: ${snippet}`)
 }
 
+function hasTrackedFiles(target) {
+  try {
+    return execFileSync('git', ['ls-files', '--', target], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim().length > 0
+  } catch {
+    return false
+  }
+}
+
 const packageJson = JSON.parse(read('package.json'))
 const packageLock = JSON.parse(read('package-lock.json'))
 
@@ -31,8 +44,10 @@ assert(packageJson.scripts?.['release:check'] === 'npm run test:smoke && npm run
 assert(packageJson.dependencies?.['@supabase/supabase-js'], 'Missing Supabase client dependency.')
 assert(packageLock.packages?.['']?.dependencies?.['@supabase/supabase-js'], 'Lockfile is missing Supabase dependency.')
 assert(!exists('pnpm-lock.yaml'), 'Only package-lock.json is allowed.')
-assert(!exists('dist'), 'dist must not be committed.')
-assert(!exists('node_modules'), 'node_modules must not be committed.')
+assert(!hasTrackedFiles('dist'), 'dist contains Git-tracked files.')
+assert(!hasTrackedFiles('node_modules'), 'node_modules contains Git-tracked files.')
+assert(exists('.gitignore'), '.gitignore is required.')
+contains('.gitignore', ['node_modules', 'dist'])
 
 for (const file of [
   '.github/workflows/ci.yml',
@@ -60,6 +75,7 @@ contains('netlify.toml', [
   'command = "npm run release:check"',
   'publish = "dist"',
   'functions = "netlify/functions"',
+  'NODE_VERSION = "22"',
   'X-Frame-Options = "DENY"',
   'X-Content-Type-Options = "nosniff"',
   'Referrer-Policy = "strict-origin-when-cross-origin"',
@@ -99,7 +115,8 @@ contains('src/components/legal/ConsentGate.tsx', [
 contains('src/components/auth/AuthPage.tsx', [
   'EMAIL_PATTERN',
   'password.length >= 10',
-  'autoComplete="new-password"',
+  "'current-password'",
+  "'new-password'",
   'otp_expired',
 ])
 
