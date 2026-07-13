@@ -1,147 +1,86 @@
 # Nibras setup
 
-Nibras is a public web app hosted on Netlify. Students should use it from a normal link; they should not need to download the project or run localhost.
+Nibras is a Netlify-hosted study helper backed by Supabase Auth and database policies. Students use the public site; they do not need a local installation.
 
 ## Local development
 
-1. Install dependencies:
-
 ```bash
-npm install
-```
-
-2. Create `.env` beside `package.json`:
-
-```env
-# Public frontend variables
-VITE_SUPABASE_URL=https://syhypibwebtfqzqlvrlh.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_UFhOSNGSCXco0waw_D9o9g_EXtbYXim
-VITE_SUPABASE_ANON_KEY=your_legacy_anon_key_if_needed
-VITE_ADMIN_EMAILS=Mohammed.Ali.H1@outlook.sa
-
-# Server-only Netlify Function variables
-AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here
-OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
-
-# Optional free/cheap provider fallback
-GROQ_API_KEY=gsk_your_groq_key_here
-GROQ_MODEL=llama-3.1-8b-instant
-GEMINI_API_KEY=your_gemini_key_here
-GEMINI_MODEL=gemini-1.5-flash
-
-# Free beta safeguards
-AI_DAILY_IP_LIMIT=25
-AI_MAX_MESSAGES=16
-AI_MAX_PROMPT_CHARS=12000
-AI_MAX_OUTPUT_TOKENS=1800
-PUBLIC_SITE_URL=http://localhost:9999
-ALLOWED_ORIGIN=http://localhost:9999
-```
-
-3. Run through Netlify Dev so chatbot and quiz generation can access the backend function:
-
-```bash
+npm ci
+copy .env.example .env
 npx netlify dev --port 9999
 ```
 
-4. Open:
+Open `http://localhost:9999`. Use Netlify Dev rather than plain Vite when testing AI functions.
 
-```text
-http://localhost:9999
-```
+Populate `.env` with your own values. Never commit the completed `.env` file.
 
-Do not use `http://localhost:5173` for testing chatbot or quiz generation because that runs Vite without Netlify Functions.
-
-## Deployment on Netlify
-
-Build command:
-
-```bash
-npm run build
-```
-
-Publish directory:
-
-```text
-dist
-```
-
-Functions directory:
-
-```text
-netlify/functions
-```
-
-Required Netlify environment variables for Supabase Auth:
+Required public browser values:
 
 ```env
-VITE_SUPABASE_URL=https://syhypibwebtfqzqlvrlh.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_UFhOSNGSCXco0waw_D9o9g_EXtbYXim
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-Required Netlify environment variables for the AI proxy:
+Required server-only values:
 
 ```env
 AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here
-OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
-AI_DAILY_IP_LIMIT=25
+OPENROUTER_API_KEY=your_openrouter_server_key
+OPENROUTER_MODEL=tencent/hy3
+AI_DAILY_USER_LIMIT=25
 AI_MAX_MESSAGES=16
 AI_MAX_PROMPT_CHARS=12000
 AI_MAX_OUTPUT_TOKENS=1800
-PUBLIC_SITE_URL=https://nibras.netlify.app
-ALLOWED_ORIGIN=https://nibras.netlify.app
+PUBLIC_SITE_URL=https://nibras-tutor.netlify.app
+ALLOWED_ORIGIN=https://nibras-tutor.netlify.app
 ```
 
-Optional fallback variables:
+Provider secrets must be scoped to Netlify Functions/runtime and must never use a `VITE_` prefix.
 
-```env
-GROQ_API_KEY=gsk_your_groq_key_here
-GROQ_MODEL=llama-3.1-8b-instant
-GEMINI_API_KEY=your_gemini_key_here
-GEMINI_MODEL=gemini-1.5-flash
+## Release checks
+
+```bash
+npm ci
+npm run release:check
+npm run test:production
 ```
 
-## Supabase Auth
+Netlify runs `npm run release:check` before publishing. GitHub Actions runs the same release gate for pushes and pull requests to `main`.
 
-The app now uses Supabase Auth for email/password signup and login.
+## Authentication and roles
 
-Current behavior:
+- Supabase Auth handles email/password signup and login.
+- A trigger creates `public.profiles` rows.
+- New users default to `student`.
+- Admin and developer access comes only from `public.profiles.role`.
+- The bootstrap owner email is stored in the private database allowlist, not in frontend authorization code.
+- Email confirmation redirects must point to `https://nibras-tutor.netlify.app`.
 
-- `signUp` creates an auth user through Supabase.
-- The database trigger creates a matching row in `public.profiles`.
-- New users receive the default role `student`.
-- Mohammed's email, `Mohammed.Ali.H1@outlook.sa`, is in `private.admin_allowlist` and is automatically promoted to `developer` when that account signs up.
-- Admin/developer access is based on `public.profiles.role`, not a hardcoded frontend email.
-- `useCurrentUser()` still returns the shape expected by the existing UI so dashboard/sidebar code remains compatible.
+## Database security
 
-If email confirmations are enabled in Supabase, new users must confirm their email before they can sign in.
+- RLS is enabled on every user-data table.
+- Users can read and mutate only rows owned by their authenticated user ID.
+- Admin helper functions and allowlists live in the non-exposed `private` schema.
+- AI usage is authenticated and stored per user in `public.ai_usage_logs`.
+- Daily AI limits are persistent; burst limits use the atomic `consume_rate_limit` database function.
+- Never expose a Supabase service-role key to browser code, GitHub, screenshots, or support chats.
+
+## Consent and local drafts
+
+Privacy, Terms, and the security notice are mandatory for signed-in users. Acceptance is recorded in `public.profiles`. A small essential cookie records the accepted policy version. Unfinished quiz and chat state belongs in account-scoped browser storage, not cookies; cookies are too small and are transmitted with requests.
+
+## Resources and RAG
+
+Only extracted text can be used as tutoring context. Binary PDF, Word, PowerPoint, and image files must not be presented as readable by the tutor until extraction succeeds. Text notes are chunked and retrieved by relevance before being passed to the tutor.
 
 ## Routing
 
-The app uses `BrowserRouter`, so Netlify needs a single-page-app redirect. This is configured in `netlify.toml`:
+`netlify.toml` contains the SPA redirect so direct routes such as `/quiz`, `/chat`, `/admin`, `/privacy`, and `/terms` survive refreshes.
 
-```toml
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-```
+## Operational rules
 
-Without this redirect, direct links such as `/quiz`, `/chat`, or `/admin` may return a 404 on refresh.
-
-## Current beta security status
-
-- Supabase Auth is now used for real email/password auth.
-- RLS is enabled on all public user-data tables.
-- User roles live in `public.profiles.role` with `student`, `admin`, and `developer` values.
-- Security-definer role helpers live in the private schema instead of the exposed public schema.
-- The AI key stays in the Netlify Function and is never exposed in frontend code.
-- The Netlify Function has basic prompt-size, output-token, and per-IP daily limits.
-- The current in-memory IP limit is a cheap launch guard. It can reset between function instances and should be replaced by Supabase-backed usage logs for a wider launch.
-
-## Notes
-
-- The Google Drive upload UI is a safe mock of the intended Google Picker flow. In production, enable Google Picker API + Drive API and use `DocsUploadView` so students can upload from their computer through Google's Drive popup.
-- Do not promise permanent cloud sync until Supabase persistence is fully wired for profiles, exams, quizzes, files, and usage logs.
+- Rotate provider secrets after accidental disclosure and on a regular schedule.
+- Enable leaked-password protection and CAPTCHA in Supabase when the project plan supports them.
+- Keep dependency updates and CodeQL checks enabled.
+- Review Netlify function logs and `client_error_logs` after releases.
+- Confirm database backups in the Supabase dashboard before inviting many students.
