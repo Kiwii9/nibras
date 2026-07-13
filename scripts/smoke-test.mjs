@@ -30,14 +30,8 @@ function assertFileContains(file, snippets) {
 
 const packageJson = JSON.parse(read('package.json'))
 const packageLock = JSON.parse(read('package-lock.json'))
-const netlifyToml = read('netlify.toml')
 const chatFunction = read('netlify/functions/chat.cjs')
 const supabaseClient = read('src/lib/supabase.ts')
-const authPage = read('src/components/auth/AuthPage.tsx')
-const chatPage = read('src/components/chatbot/Chatbot.tsx')
-const ambientNoise = read('src/components/ambient/AmbientNoise.tsx')
-const resourcesPage = read('src/components/drive/DriveUploader.tsx')
-const schema = read('supabase/schema.sql')
 
 assert(packageJson.scripts?.build === 'tsc && vite build', 'package.json build script must run TypeScript before Vite.')
 assert(packageJson.scripts?.['test:smoke'] === 'node scripts/smoke-test.mjs', 'package.json must expose test:smoke.')
@@ -47,13 +41,22 @@ assert(packageLock.packages?.['']?.dependencies?.['@supabase/supabase-js'], 'pac
 assert(!exists('pnpm-lock.yaml'), 'pnpm-lock.yaml must not exist because Netlify should use npm/package-lock.')
 assert(!exists('dist'), 'dist must not be committed.')
 assert(!exists('node_modules'), 'node_modules must not be committed.')
+assert(exists('.github/workflows/ci.yml'), 'GitHub Actions CI workflow must exist.')
 
 assertFileContains('netlify.toml', [
   'command = "npm run build"',
   'publish = "dist"',
   'functions = "netlify/functions"',
+  'X-Frame-Options = "DENY"',
+  'X-Content-Type-Options = "nosniff"',
   'from = "/*"',
   'to = "/index.html"',
+])
+
+assertFileContains('.github/workflows/ci.yml', [
+  'npm ci',
+  'npm run test:smoke',
+  'npm run build',
 ])
 
 assertFileContains('src/lib/supabase.ts', [
@@ -84,6 +87,13 @@ assertFileContains('netlify/functions/chat.cjs', [
   'Access-Control-Allow-Origin',
 ])
 
+assertFileContains('netlify/functions/health.cjs', [
+  'openRouterKeyConfigured',
+  'supabaseUrlConfigured',
+  'AI_DAILY_IP_LIMIT',
+  'does not expose secret values',
+])
+
 assertFileContains('src/components/ambient/AmbientNoise.tsx', [
   "type SoundId = 'white' | 'rain' | 'bonfire' | 'forest' | 'cafe' | 'ocean' | 'wind'",
   'new Audio',
@@ -104,6 +114,12 @@ assertFileContains('supabase/schema.sql', [
   'private.is_admin',
   'handle_new_user',
   'Mohammed.Ali.H1@outlook.sa',
+])
+
+assertFileContains('PUBLISH_READY_CHECKLIST.md', [
+  'npm run test:smoke',
+  'Manual smoke test script',
+  'Before inviting many students',
 ])
 
 warn(!supabaseClient.includes('sb_publishable_'), 'src/lib/supabase.ts currently contains a fallback publishable key. Prefer env-only before a larger launch.')
