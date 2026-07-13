@@ -1,4 +1,4 @@
-# Frontend Supabase values are injected by Netlify at build time.
+# Public browser configuration only. Secrets remain in Netlify environment variables.
 [build]
   command = "npm run release:check"
   publish = "dist"
@@ -6,6 +6,17 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  VITE_SUPABASE_URL = "https://syhypibwebtfqzqlvrlh.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_UFhOSNGSCXco0waw_D9o9g_EXtbYXim"
+  SUPABASE_URL = "https://syhypibwebtfqzqlvrlh.supabase.co"
+  SUPABASE_PUBLISHABLE_KEY = "sb_publishable_UFhOSNGSCXco0waw_D9o9g_EXtbYXim"
+  PUBLIC_SITE_URL = "https://nibras-tutor.netlify.app"
+  ALLOWED_ORIGIN = "https://nibras-tutor.netlify.app"
+  OPENROUTER_MODEL = "tencent/hy3"
+  AI_DAILY_USER_LIMIT = "25"
+  AI_MAX_MESSAGES = "16"
+  AI_MAX_PROMPT_CHARS = "12000"
+  AI_MAX_OUTPUT_TOKENS = "1800"
 
 [dev]
   command = "npm run dev"
