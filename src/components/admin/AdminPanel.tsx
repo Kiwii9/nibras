@@ -13,7 +13,7 @@ import { useT } from '@/hooks/useT'
 
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="glass-card rounded-xl p-4 border border-border/50">
+    <div className="glass-card rounded-xl p-4 border border-border">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
       <p className="font-display text-xl" style={{ color }}>{value}</p>
     </div>
@@ -37,7 +37,7 @@ export function AdminPanel() {
 
   // Mock settings
   const [mockLatency, setMockLatency] = useState(800)
-  const [mockResponse, setMockResponse] = useState('🧪 Mock response')
+  const [mockResponse, setMockResponse] = useState('Mock response - admin test mode')
   const [mockFail, setMockFail] = useState(false)
   const [mockResult, setMockResult] = useState('')
 
@@ -87,9 +87,9 @@ export function AdminPanel() {
     addLog(`Mock test | latency=${mockLatency}ms | fail=${mockFail}`)
     try {
       const res = await callLLM([{ role: 'user', content: 'test' }], apiConfig, { mock: true, mockLatency, mockResponse, mockFail })
-      setMockResult(res.mock ? `✅ Mock: ${res.content}` : `Real: ${res.content}`)
+      setMockResult(res.mock ? `[MOCK] ${res.content}` : `Real: ${res.content}`)
     } catch (err) {
-      setMockResult(`❌ Simulated failure: ${String(err)}`)
+      setMockResult(`[FAIL] Simulated failure: ${String(err)}`)
     }
   }
 
@@ -109,7 +109,7 @@ export function AdminPanel() {
         </div>
         <div>
           <h1 className="font-display text-2xl">{isAr ? 'لوحة الإدارة' : 'Admin Panel'}</h1>
-          <p className="text-xs text-muted-foreground">{isAr ? `مرحباً ${currentUser?.name} — وضع التطوير` : `Welcome ${currentUser?.name} — Developer Mode`}</p>
+          <p className="text-xs text-muted-foreground">{isAr ? `مرحباً ${currentUser?.name} - وضع التطوير` : `Welcome ${currentUser?.name} - Developer Mode`}</p>
         </div>
         <div className="ms-auto flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
@@ -125,7 +125,7 @@ export function AdminPanel() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto">
+      <div className="flex gap-1 bg-muted p-1 rounded-xl overflow-x-auto">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
             className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all',
@@ -141,7 +141,7 @@ export function AdminPanel() {
         <div className="space-y-2">
           {FEATURE_FLAGS.map(flag => (
             <motion.div key={flag.key} layout
-              className="glass-card rounded-xl p-4 flex items-center justify-between border border-border/50">
+              className="glass-card rounded-xl p-4 flex items-center justify-between border border-border">
               <div className="flex-1 min-w-0 me-4">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold">{isAr ? flag.labelAr : flag.label}</p>
@@ -151,7 +151,7 @@ export function AdminPanel() {
               </div>
               <button onClick={() => toggleFlag(flag.key)}
                 className={cn('shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all',
-                  flags[flag.key] ? 'bg-teal-500/20 text-teal-400 border border-teal-500/40' : 'bg-muted text-muted-foreground border border-border/50')}>
+                  flags[flag.key] ? 'bg-teal-500/20 text-teal-400 border border-teal-500/40' : 'bg-muted text-muted-foreground border border-border')}>
                 {flags[flag.key] ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
                 {flags[flag.key] ? (isAr ? 'مفعّل' : 'ON') : (isAr ? 'معطّل' : 'OFF')}
               </button>
@@ -163,7 +163,7 @@ export function AdminPanel() {
       {/* Prompt Tester */}
       {activeTab === 'prompt' && (
         <div className="space-y-4">
-          <div className="glass-card rounded-xl p-4 space-y-3 border border-border/50">
+          <div className="glass-card rounded-xl p-4 space-y-3 border border-border">
             <label className="text-xs font-medium text-muted-foreground">{isAr ? 'اختبر أي prompt مباشرة' : 'Test any prompt directly'}</label>
             <textarea value={testPrompt} onChange={e => setTestPrompt(e.target.value)} rows={4}
               placeholder={isAr ? 'اكتب prompt هنا...' : 'Enter your prompt here...'}
@@ -176,14 +176,14 @@ export function AdminPanel() {
           </div>
 
           {testResponse && (
-            <div className="glass-card rounded-xl p-4 space-y-2 border border-border/50">
+            <div className="glass-card rounded-xl p-4 space-y-2 border border-border">
               {testTokens && (
                 <div className="flex gap-3 text-xs text-muted-foreground mb-2">
                   <span className="flex items-center gap-1"><Cpu className="w-3 h-3"/> Prompt: {testTokens.promptTokens ?? '?'}</span>
                   <span className="flex items-center gap-1"><Zap className="w-3 h-3"/> Completion: {testTokens.completionTokens ?? '?'}</span>
                 </div>
               )}
-              <pre className="text-xs text-foreground whitespace-pre-wrap font-mono bg-muted/50 p-3 rounded-lg max-h-64 overflow-auto">{testResponse}</pre>
+              <pre className="text-xs text-foreground whitespace-pre-wrap font-mono bg-muted p-3 rounded-lg max-h-64 overflow-auto">{testResponse}</pre>
             </div>
           )}
         </div>
@@ -191,7 +191,7 @@ export function AdminPanel() {
 
       {/* Mock / Simulate */}
       {activeTab === 'mock' && (
-        <div className="glass-card rounded-xl p-5 space-y-4 border border-border/50">
+        <div className="glass-card rounded-xl p-5 space-y-4 border border-border">
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">{isAr ? 'الرد الوهمي' : 'Mock Response Text'}</label>
@@ -204,7 +204,7 @@ export function AdminPanel() {
                 className="w-full accent-teal-500 mt-1.5" />
             </div>
             <label className={cn('flex items-center gap-2.5 cursor-pointer p-3 rounded-xl border',
-              mockFail ? 'border-destructive/40 bg-destructive/10' : 'border-border/50 bg-muted/30')}>
+              mockFail ? 'border-destructive/40 bg-destructive/10' : 'border-border bg-muted')}>
               <input type="checkbox" checked={mockFail} onChange={e => setMockFail(e.target.checked)} className="accent-destructive" />
               <span className="text-sm font-medium text-destructive">{isAr ? 'محاكاة فشل API' : 'Simulate API Failure'}</span>
             </label>
@@ -214,7 +214,7 @@ export function AdminPanel() {
               {isAr ? 'تشغيل الاختبار' : 'Run Mock Test'}
             </button>
             {mockResult && (
-              <div className={cn('p-3 rounded-xl text-xs font-mono', mockResult.startsWith('✅') ? 'bg-teal-500/10 text-teal-400' : 'bg-destructive/10 text-destructive')}>
+              <div className={cn('p-3 rounded-xl text-xs font-mono', mockResult.startsWith('[MOCK]') ? 'bg-teal-500/10 text-teal-400' : 'bg-destructive/10 text-destructive')}>
                 {mockResult}
               </div>
             )}
@@ -224,8 +224,8 @@ export function AdminPanel() {
 
       {/* Debug Logs */}
       {activeTab === 'logs' && (
-        <div className="glass-card rounded-xl border border-border/50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-muted/30">
+        <div className="glass-card rounded-xl border border-border overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted">
             <div className="flex items-center gap-2 text-xs font-semibold"><Bug className="w-3.5 h-3.5 text-primary"/>{isAr ? 'سجل الأحداث' : 'Event Log'}</div>
             <button onClick={() => setLogs([])} className="text-xs text-muted-foreground hover:text-foreground">{isAr ? 'مسح' : 'Clear'}</button>
           </div>

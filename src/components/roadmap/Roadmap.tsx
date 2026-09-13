@@ -1,261 +1,173 @@
 import { motion } from 'framer-motion'
 import { useT } from '@/hooks/useT'
-import { cn } from '@/lib/utils'
-import {
-  Trophy, Globe, Users, CalendarDays, BarChart2, RefreshCw,
-  CreditCard, FileQuestion, MessagesSquare, GraduationCap,
-  LayoutDashboard, Bot, Rocket, CheckCircle2, Clock, Sparkles
-} from 'lucide-react'
+import { CheckCircle, Circle, Clock, Sparkles } from 'lucide-react'
 
-type Status = 'done' | 'inprogress' | 'planned' | 'future'
+const FADE_UP = (delay = 0) => ({
+  initial: { opacity: 0, y: 20 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-40px' },
+  transition: { duration: 0.45, delay, ease: 'easeOut' as const },
+})
+
+type Status = 'done' | 'active' | 'planned' | 'future'
 
 interface RoadmapItem {
-  icon: any
   titleAr: string
   titleEn: string
   descAr: string
   descEn: string
   status: Status
-  color: string
 }
 
-const STATUS_META: Record<Status, { labelAr: string; labelEn: string; className: string }> = {
-  done:       { labelAr: 'مكتمل',  labelEn: 'Live',        className: 'bg-teal-500/20 text-teal-400 border-teal-500/30' },
-  inprogress: { labelAr: 'جارٍ',   labelEn: 'In Progress', className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  planned:    { labelAr: 'مخطط',   labelEn: 'Planned',     className: 'bg-gold/20 text-gold border-gold/30' },
-  future:     { labelAr: 'مستقبلي', labelEn: 'Future',     className: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-}
-
-const ROADMAP: RoadmapItem[] = [
-  {
-    icon: LayoutDashboard,
-    titleAr: 'لوحة التحكم الشخصية', titleEn: 'Personal Dashboard',
-    descAr: 'ملخص رحلتك الدراسية — نشاط حديث، تقدّم، مهام قادمة، ونقاط ضعف وقوة.',
-    descEn: 'A full summary of your learning journey — recent activity, progress, upcoming tasks, weak & strong areas.',
-    status: 'done', color: '#3E9AA6',
-  },
-  {
-    icon: FileQuestion,
-    titleAr: 'محرك الاختبارات الذكي', titleEn: 'AI Quiz Engine',
-    descAr: '6 أنماط اختبار، تقييم دلالي بالذكاء الاصطناعي، لا مطابقة كلمات.',
-    descEn: '6 quiz formats, AI semantic grading — understanding over keywords.',
-    status: 'done', color: '#2D7A84',
-  },
-  {
-    icon: Bot,
-    titleAr: 'المساعد الدراسي الذكي', titleEn: 'AI Study Chatbot',
-    descAr: 'دردشة مع مواد دراستك، اطرح أسئلة، احصل على شروحات مخصصة.',
-    descEn: 'Chat with your study materials, ask questions, get personalized explanations.',
-    status: 'done', color: '#C9A84C',
-  },
-  {
-    icon: Trophy,
-    titleAr: 'نظام النقاط والمستويات', titleEn: 'Gamification',
-    descAr: 'نقاط، مستويات، شارات، تحديات يومية. اجعل المذاكرة ممتعة ومحفّزة.',
-    descEn: 'Points, levels, badges, daily challenges. Make studying fun and motivating.',
-    status: 'inprogress', color: '#E09A2D',
-  },
-  {
-    icon: CalendarDays,
-    titleAr: 'خطة الدراسة الذكية', titleEn: 'Smart Study Plan Builder',
-    descAr: 'مواد، مواعيد، أهداف، مهام يومية. اعرف ماذا تذاكر اليوم وهذا الأسبوع.',
-    descEn: 'Subjects, deadlines, goals, daily tasks. Know exactly what to study today and this week.',
-    status: 'inprogress', color: '#56A86B',
-  },
-  {
-    icon: BarChart2,
-    titleAr: 'تحليلات التقدّم البصرية', titleEn: 'Progress Analytics',
-    descAr: 'رسوم بيانية تُظهر تقدّمك، نقاط الضعف، الأهداف المنجزة، سلسلة الدراسة.',
-    descEn: 'Visual charts showing scores, weak points, completed goals, study streaks over time.',
-    status: 'planned', color: '#4A90D9',
-  },
-  {
-    icon: RefreshCw,
-    titleAr: 'نظام المراجعة الذكية', titleEn: 'Smart Revision System',
-    descAr: 'مقترحات مراجعة مبنية على أخطاءك. تكرار متباعد لحفظ أعمق وأطول.',
-    descEn: 'Review suggestions based on your mistakes. Spaced repetition for deeper retention.',
-    status: 'planned', color: '#7C5CBF',
-  },
-  {
-    icon: CreditCard,
-    titleAr: 'بطاقات تعليمية متقدمة', titleEn: 'Advanced Flashcards',
-    descAr: 'توليد بطاقات من محتواك المرفوع، إنشاء يدوي، تكرار متباعد ذكي.',
-    descEn: 'Generate flashcards from uploaded content, manual creation, smart spaced repetition.',
-    status: 'planned', color: '#3E9AA6',
-  },
-  {
-    icon: FileQuestion,
-    titleAr: 'الامتحانات التجريبية', titleEn: 'Mock Exams',
-    descAr: 'اختبارات كاملة من محتواك. مؤقت، درجات، مراجعة الإجابات، شرح الأخطاء.',
-    descEn: 'Full practice exams from your content — timer, scores, answer review, mistake explanations.',
-    status: 'planned', color: '#E05555',
-  },
-  {
-    icon: Globe,
-    titleAr: 'تعلّم اللغات', titleEn: 'Language Learning',
-    descAr: 'تعلّم أي لغة بمفردات، قواعد، استماع، كتابة، وتكرار متباعد.',
-    descEn: 'Learn any language — vocabulary, grammar, listening, writing, and spaced repetition.',
-    status: 'future', color: '#C9A84C',
-  },
-  {
-    icon: Users,
-    titleAr: 'تعلّم الأقران', titleEn: 'Peer Tutoring',
-    descAr: 'الطلاب يشاركون شروحاتهم الخاصة ليستفيد منها زملاؤهم.',
-    descEn: 'Students upload their own explanations for classmates to benefit from.',
-    status: 'future', color: '#4A90D9',
-  },
-  {
-    icon: MessagesSquare,
-    titleAr: 'غرف الدراسة التعاونية', titleEn: 'Collaborative Study Rooms',
-    descAr: 'أنشئ غرف دراسة، ناقش الدروس، تدرّب مع زملائك.',
-    descEn: 'Create or join study rooms — discuss lessons, ask questions, practice together.',
-    status: 'future', color: '#7C5CBF',
-  },
-  {
-    icon: GraduationCap,
-    titleAr: 'وضع المعلّم / المرشد', titleEn: 'Teacher / Mentor Mode',
-    descAr: 'للمعلمين والطلاب المتقدمين: إنشاء محتوى، اختبارات، ومسارات تعليمية.',
-    descEn: 'For teachers or advanced students: create learning materials, quizzes, and learning paths.',
-    status: 'future', color: '#56A86B',
-  },
+const ITEMS: RoadmapItem[] = [
+  { status: 'done',    titleAr: 'لوحة التحكم',               titleEn: 'Dashboard',               descAr: 'ملخص التقدم والإحصاءات',                   descEn: 'Progress summary and stats' },
+  { status: 'done',    titleAr: 'محرك الاختبارات',           titleEn: 'Quiz Engine',              descAr: '6 أنواع أسئلة مع تصحيح ذكي',              descEn: '6 question types with AI grading' },
+  { status: 'done',    titleAr: 'المساعد الذكي',             titleEn: 'AI Tutor',                 descAr: 'محادثة سقراطية مع ملفاتك',                 descEn: 'Socratic chat with your files' },
+  { status: 'done',    titleAr: 'متتبع الامتحانات',          titleEn: 'Exam Tracker',             descAr: 'عداد تنازلي ومعلومات الامتحان',            descEn: 'Countdown and exam details' },
+  { status: 'done',    titleAr: 'مؤقت بومودورو',             titleEn: 'Pomodoro Timer',           descAr: 'تقنية التركيز مع أصوات محيطية',            descEn: 'Focus technique with ambient sounds' },
+  { status: 'done',    titleAr: 'نظام الحسابات السحابية',    titleEn: 'Cloud Auth',               descAr: 'تسجيل وحفظ البيانات عبر Supabase',         descEn: 'Sign-up and data persistence via Supabase' },
+  { status: 'active',  titleAr: 'نظام النقاط والمستويات',   titleEn: 'Gamification',             descAr: 'XP، شارات، وخارطة تقدم',                   descEn: 'XP, badges, and progress map' },
+  { status: 'active',  titleAr: 'منشئ خطة الدراسة',         titleEn: 'Smart Study Plan',         descAr: 'خطة دراسية مولّدة بالذكاء الاصطناعي',      descEn: 'AI-generated study plan' },
+  { status: 'planned', titleAr: 'تحليلات التقدم',            titleEn: 'Progress Analytics',       descAr: 'إحصاءات أداء تفصيلية',                     descEn: 'Detailed performance statistics' },
+  { status: 'planned', titleAr: 'المراجعة الذكية',           titleEn: 'Smart Revision',           descAr: 'تكرار متباعد وتوصيات مراجعة',              descEn: 'Spaced repetition and revision tips' },
+  { status: 'planned', titleAr: 'بطاقات الحفظ',              titleEn: 'Flashcard Decks',          descAr: 'مجموعات بطاقات قابلة للمشاركة',            descEn: 'Shareable flashcard collections' },
+  { status: 'planned', titleAr: 'امتحانات تجريبية كاملة',   titleEn: 'Mock Exams',               descAr: 'محاكاة ظروف الامتحان الحقيقي',             descEn: 'Simulate real exam conditions' },
+  { status: 'future',  titleAr: 'تعلم اللغات',               titleEn: 'Language Learning',        descAr: 'دعم تعلم اللغات',                           descEn: 'Language learning support' },
+  { status: 'future',  titleAr: 'غرف الدراسة الجماعية',     titleEn: 'Study Rooms',              descAr: 'ذاكر مع أصدقائك في الوقت الفعلي',          descEn: 'Study with friends in real time' },
+  { status: 'future',  titleAr: 'وضع المعلم',                titleEn: 'Teacher Mode',             descAr: 'إنشاء اختبارات للطلاب',                    descEn: 'Create quizzes for students' },
 ]
 
-function RoadmapCard({ item, delay }: { item: RoadmapItem; delay: number }) {
-  const { lang } = useT()
-  const isAr = lang === 'ar'
-  const Icon = item.icon
-  const status = STATUS_META[item.status]
-  const isDone = item.status === 'done'
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.3 }}
-      className={cn(
-        'glass-card rounded-2xl p-5 flex flex-col gap-4 relative overflow-hidden transition-all hover:-translate-y-0.5',
-        isDone && 'border-teal-500/30'
-      )}
-    >
-      {/* Subtle color accent */}
-      <div className="absolute top-0 inset-x-0 h-0.5 rounded-t-2xl" style={{ background: item.color }} />
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${item.color}22` }}>
-          <Icon className="w-5 h-5" style={{ color: item.color }} />
-        </div>
-        <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0', status.className)}>
-          {isAr ? status.labelAr : status.labelEn}
-        </span>
-      </div>
-
-      <div>
-        <h3 className="font-semibold text-sm text-foreground mb-1.5">
-          {isAr ? item.titleAr : item.titleEn}
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed" dir="auto">
-          {isAr ? item.descAr : item.descEn}
-        </p>
-      </div>
-
-      {isDone && (
-        <div className="flex items-center gap-1.5 text-teal-400 text-xs font-medium">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          {isAr ? 'متاح الآن في نِبْرَاس' : 'Available now in Nibras'}
-        </div>
-      )}
-    </motion.div>
-  )
+const STATUS_CONFIG: Record<Status, { label: string; labelAr: string; color: string; icon: React.FC<any> }> = {
+  done:    { label: 'Shipped',      labelAr: 'مكتمل',       color: 'var(--success)',  icon: CheckCircle },
+  active:  { label: 'In progress',  labelAr: 'جارٍ الآن',   color: 'var(--accent)',   icon: Clock },
+  planned: { label: 'Planned',      labelAr: 'مخطط',        color: 'var(--primary)',  icon: Circle },
+  future:  { label: 'Future',       labelAr: 'مستقبلي',     color: 'var(--text-muted)', icon: Sparkles },
 }
 
-export function RoadmapPage() {
-  const { t, lang } = useT()
-  const isAr = lang === 'ar'
+const ORDER: Status[] = ['done', 'active', 'planned', 'future']
 
-  const statusCounts = {
-    done: ROADMAP.filter(i => i.status === 'done').length,
-    inprogress: ROADMAP.filter(i => i.status === 'inprogress').length,
-    planned: ROADMAP.filter(i => i.status === 'planned').length,
-    future: ROADMAP.filter(i => i.status === 'future').length,
-  }
+export function RoadmapPage() {
+  const { lang } = useT()
+  const isAr = lang === 'ar'
+  const t = (ar: string, en: string) => isAr ? ar : en
+
+  const grouped = ORDER.map(status => ({
+    status,
+    items: ITEMS.filter(i => i.status === status),
+    config: STATUS_CONFIG[status],
+  }))
 
   return (
-    <div className="section-wrapper space-y-8">
+    <div
+      className="section-wrapper"
+      dir={isAr ? 'rtl' : 'ltr'}
+      style={{ maxWidth: 700, margin: '0 auto' }}
+    >
+
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-2 mb-2">
-          <Rocket className="w-5 h-5 text-primary" />
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            {isAr ? 'خارطة الطريق' : 'Roadmap'}
-          </span>
-        </div>
-        <h1 className="font-display text-3xl sm:text-4xl text-foreground mb-3">
-          {isAr ? 'خارطة طريق نِبْرَاس' : 'Nibras Roadmap'}
+      <motion.div {...FADE_UP(0)} style={{ marginBottom: 48 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 14 }}>
+          {t('خارطة الطريق', 'Roadmap')}
+        </p>
+        <h1 style={{
+          fontFamily: "'Reem Kufi', sans-serif",
+          fontSize: 'clamp(24px, 4vw, 38px)',
+          fontWeight: 700, color: 'var(--text-primary)',
+          lineHeight: 1.2, marginBottom: 14,
+        }}>
+          {t('إلى أين يتجه نِبراس', 'Where Nibras is heading')}
         </h1>
-        <p className="text-muted-foreground text-sm max-w-xl leading-relaxed" dir="auto">
-          {isAr
-            ? 'هذه هي رؤيتنا لمستقبل نِبْرَاس. كل ميزة مدروسة بعناية لتجعل تجربتك الدراسية أكثر ذكاءً وفاعلية.'
-            : 'Our vision for the future of Nibras. Every feature is thoughtfully designed to make your learning experience smarter and more effective.'}
+        <p style={{ fontSize: 15, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+          {t('خارطة الطريق تتطور باستمرار. المجتمع يشكّل الأولويات.', 'The roadmap evolves continuously. The community shapes priorities.')}
         </p>
       </motion.div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {([
-          { status: 'done', icon: CheckCircle2, color: '#3E9AA6' },
-          { status: 'inprogress', icon: Clock, color: '#4A90D9' },
-          { status: 'planned', icon: Sparkles, color: '#C9A84C' },
-          { status: 'future', icon: Rocket, color: '#7C5CBF' },
-        ] as const).map(({ status, icon: Icon, color }) => (
-          <motion.div key={status}
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.05 }}
-            className="glass-card rounded-xl p-4 flex items-center gap-3"
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: `${color}22` }}>
-              <Icon className="w-4 h-4" style={{ color }} />
-            </div>
-            <div>
-              <p className="font-display text-xl text-foreground leading-none">{statusCounts[status]}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{STATUS_META[status][isAr ? 'labelAr' : 'labelEn']}</p>
-            </div>
-          </motion.div>
-        ))}
+      {/* Timeline */}
+      <div style={{ position: 'relative' }}>
+
+        {/* Vertical rail */}
+        <div style={{
+          position: 'absolute',
+          top: 0, bottom: 0,
+          [isAr ? 'right' : 'left']: 19,
+          width: 1,
+          background: 'var(--border)',
+          zIndex: 0,
+        }} />
+
+        {grouped.map(({ status, items, config }) => {
+          const Icon = config.icon
+          return (
+            <motion.div key={status} {...FADE_UP(0.05)} style={{ marginBottom: 40 }}>
+
+              {/* Phase label row */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
+                position: 'relative', zIndex: 1,
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: 'var(--shadow-sm)',
+                }}>
+                  <Icon size={16} style={{ color: config.color }} />
+                </div>
+                <span style={{
+                  fontSize: 12, fontWeight: 700, letterSpacing: '0.07em',
+                  textTransform: 'uppercase', color: config.color,
+                }}>
+                  {t(config.labelAr, config.label)}
+                </span>
+              </div>
+
+              {/* Items */}
+              <div style={{
+                marginInlineStart: 56,
+                display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                {items.map((item, i) => (
+                  <motion.div key={i} {...FADE_UP(0.05 + i * 0.04)}
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '13px 16px',
+                      display: 'flex', alignItems: 'flex-start',
+                      justifyContent: 'space-between', gap: 16,
+                    }}
+                  >
+                    <div>
+                      <p style={{
+                        fontSize: 13.5, fontWeight: 600,
+                        color: status === 'future' ? 'var(--text-muted)' : 'var(--text-primary)',
+                        marginBottom: 3,
+                      }}>
+                        {t(item.titleAr, item.titleEn)}
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                        {t(item.descAr, item.descEn)}
+                      </p>
+                    </div>
+                    <span style={{
+                      flexShrink: 0,
+                      fontSize: 10, fontWeight: 700,
+                      padding: '3px 9px', borderRadius: 'var(--radius-full)',
+                      background: `color-mix(in srgb, ${config.color} 12%, transparent)`,
+                      color: config.color,
+                      marginTop: 1,
+                    }}>
+                      {t(config.labelAr, config.label)}
+                    </span>
+                  </motion.div>
+                ))}
+              </div>
+
+            </motion.div>
+          )
+        })}
       </div>
 
-      {/* Cards grid */}
-      {(['done', 'inprogress', 'planned', 'future'] as Status[]).map(status => {
-        const items = ROADMAP.filter(i => i.status === status)
-        if (!items.length) return null
-        const meta = STATUS_META[status]
-        return (
-          <div key={status}>
-            <div className="flex items-center gap-2 mb-4">
-              <span className={cn('text-xs font-semibold px-3 py-1 rounded-full border', meta.className)}>
-                {isAr ? meta.labelAr : meta.labelEn}
-              </span>
-              <div className="flex-1 h-px bg-border/40" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((item, i) => <RoadmapCard key={item.titleEn} item={item} delay={i * 0.06} />)}
-            </div>
-          </div>
-        )
-      })}
-
-      {/* Footer note */}
-      <div className="glass-card rounded-2xl p-5 text-center">
-        <p className="text-sm text-muted-foreground" dir="auto">
-          {isAr
-            ? '💡 خارطة الطريق تتطور باستمرار بناءً على ملاحظات الطلاب ورؤية المطوّر.'
-            : '💡 The roadmap evolves continuously based on student feedback and the developer\'s vision.'}
-        </p>
-        <p className="text-xs text-muted-foreground/60 mt-2">
-          تم تطويره من قبل KIWI | محمد حمدي
-        </p>
-      </div>
     </div>
   )
 }

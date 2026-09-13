@@ -1,3 +1,4 @@
+import { upsertChatSession, deleteChatRemote } from '@/lib/sync'
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -52,14 +53,13 @@ const VISUAL_CMDS = [
 function TypingIndicator() {
   return (
     <div className="flex items-end gap-2 mb-4">
-      <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-        style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}>
+      <div className="ai-avatar">
         <Bot className="w-3.5 h-3.5 text-white" />
       </div>
       <div className="chat-bubble-ai px-4 py-3">
         <div className="flex gap-1 items-center">
           {[0,1,2].map(i => (
-            <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/60"
+            <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-primary"
               animate={{ y: [0,-4,0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
           ))}
         </div>
@@ -99,6 +99,7 @@ function ChatMessage({ msg, isAr }: { msg: Message; isAr: boolean }) {
 
 export function Chatbot() {
   const { t, lang, isRTL } = useT()
+  const supabaseUser = useStore(s => s.supabaseUser)
   const isAr = lang === 'ar'
   const {
     files, chatSessions, activeChatId, apiConfig,
@@ -133,7 +134,7 @@ export function Chatbot() {
       messages: [], fileIds: selectedFileId ? [selectedFileId] : [],
       createdAt: new Date().toISOString(),
     }
-    addChatSession(s)
+    addChatSession(s); supabaseUser?.id && upsertChatSession(supabaseUser.id, s).catch(console.warn)
   }
 
   // ── Generate visual from a topic ────────────────────────────────────────────
@@ -199,9 +200,9 @@ export function Chatbot() {
         id: `msg-${Date.now() + 1}`, role: 'assistant',
         content: response.content, timestamp: new Date().toISOString(),
       }
-      updateChatSession(session.id, [...newMessages, assistantMsg])
+      updateChatSession(session.id, [...newMessages, assistantMsg]); supabaseUser?.id && upsertChatSession(supabaseUser.id, { ...session, messages: [...newMessages, assistantMsg] }).catch(console.warn)
 
-      // If visual command — generate visual for this message
+      // If visual command - generate visual for this message
       if (visualType) {
         // Extract topic from user text
         const topic = text.replace(/mind map|خريطة ذهنية|diagram|مخطط|timeline|جدول زمني|explain visually|اشرح بصرياً|comparison|مقارنة/gi, '').trim() || text
@@ -223,10 +224,10 @@ export function Chatbot() {
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex">
+    <div className="h-[calc(100dvh-3.5rem)] flex">
       {/* Sessions sidebar */}
-      <div className="hidden md:flex flex-col w-56 border-e border-border/50 bg-card/50 shrink-0">
-        <div className="p-3 border-b border-border/40">
+      <div className="hidden md:flex flex-col w-56 border-e border-border bg-card shrink-0">
+        <div className="p-3 border-b border-border">
           <button onClick={createSession} className="btn-teal w-full text-sm py-2">
             <Plus className="w-4 h-4" />{t('newChat')}
           </button>
@@ -237,7 +238,7 @@ export function Chatbot() {
             : chatSessions.map(s => (
               <button key={s.id} onClick={() => setActiveChatId(s.id)}
                 className={cn('w-full text-start px-3 py-2 rounded-lg text-xs transition-colors group flex items-start gap-2',
-                  activeChatId === s.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground')}>
+                  activeChatId === s.id ? 'bg-primary text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground')}>
                 <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span className="truncate flex-1">{s.title}</span>
                 <button onClick={e => { e.stopPropagation(); deleteChatSession(s.id) }}
@@ -249,7 +250,7 @@ export function Chatbot() {
         </div>
         {/* Daily usage indicator */}
         {!apiConfig.useCustomKey && (
-          <div className="p-3 border-t border-border/40 space-y-1.5">
+          <div className="p-3 border-t border-border space-y-1.5">
             <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>{isAr ? 'الاستخدام اليومي' : 'Daily usage'}</span>
               <span>{dailyMessageCount}/{DAILY_LIMIT}</span>
@@ -266,11 +267,10 @@ export function Chatbot() {
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/40">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}>
-              <Sparkles className="w-3.5 h-3.5 text-white" />
+            <div className="ai-avatar">
+              <Sparkles size={13} color="white" />
             </div>
             <span className="font-semibold text-sm truncate">{activeSession?.title ?? t('chat')}</span>
             {generatingVisual && (
@@ -292,7 +292,7 @@ export function Chatbot() {
           {!activeSession ? (
             <div className="h-full flex flex-col items-center justify-center text-center gap-4">
               <motion.div animate={{ y: [0,-6,0] }} transition={{ duration: 3, repeat: Infinity }}
-                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-teal"
+                className="w-16 h-16 rounded-lg flex items-center justify-center shadow-teal"
                 style={{ background: 'linear-gradient(135deg,#0B2428,#3E9AA6)' }}>
                 <Bot className="w-8 h-8 text-white" />
               </motion.div>
@@ -305,7 +305,7 @@ export function Chatbot() {
               <div className="grid grid-cols-2 gap-2 w-full max-w-xs mt-2">
                 {VISUAL_CMDS.map(({ icon: Icon, ar, en, cmd }) => (
                   <button key={cmd} onClick={() => { createSession(); setTimeout(() => sendMessage(cmd), 100) }}
-                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-start">
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-start">
                     <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
                     {isAr ? ar : en}
                   </button>
@@ -315,7 +315,7 @@ export function Chatbot() {
               {!hasKey && (
                 <div className="flex items-center gap-2 text-xs text-amber-500 bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20 max-w-xs">
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{isAr ? 'لا يوجد مفتاح API — ' : 'No API key — '}</span>
+                  <span>{isAr ? 'لا يوجد مفتاح API - ' : 'No API key - '}</span>
                   <Link to="/settings" className="underline font-semibold flex items-center gap-1">
                     <Settings className="w-3 h-3" />{t('settings')}
                   </Link>
@@ -331,7 +331,7 @@ export function Chatbot() {
               <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
                 {VISUAL_CMDS.map(({ icon: Icon, ar, en, cmd }) => (
                   <button key={cmd} onClick={() => sendMessage(cmd)}
-                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-start">
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-start">
                     <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
                     {isAr ? ar : en}
                   </button>
@@ -368,7 +368,7 @@ export function Chatbot() {
         </AnimatePresence>
 
         {/* Input */}
-        <div className="p-4 border-t border-border/50 bg-card/40">
+        <div className="p-4 border-t border-border bg-card">
           <div className="flex gap-2 items-end">
             <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}

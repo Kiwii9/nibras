@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" role="img" aria-label="Nibras mascot — concerned">
+  <title>Nibras mascot — concerned</title>
+  <!-- PLACEHOLDER: Replace with final mascot illustration. File: mascot-concerned.svg -->
+  <circle cx="40" cy="40" r="36" fill="#D97706" opacity="0.15" stroke="#D97706" stroke-width="1.5"/>
+  <circle cx="40" cy="40" r="26" fill="#D97706" opacity="0.9"/>
+  <text x="40" y="36" text-anchor="middle" dominant-baseline="middle" font-family="IBM Plex Sans, sans-serif" font-size="7" font-weight="700" fill="white" opacity="0.95">نِبراس</text>
+  <text x="40" y="47" text-anchor="middle" dominant-baseline="middle" font-family="IBM Plex Sans, sans-serif" font-size="6" font-weight="600" fill="white" opacity="0.75">CONCERN</text>
+</svg>

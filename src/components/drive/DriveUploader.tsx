@@ -53,7 +53,7 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
       className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
-        className="relative z-10 w-full max-w-2xl bg-card border border-border rounded-2xl overflow-hidden shadow-teal-lg flex flex-col"
+        className="relative z-10 w-full max-w-2xl bg-card border border-border rounded-lg overflow-hidden shadow-teal-lg flex flex-col"
         style={{ maxHeight: '88vh' }}>
         <div className="px-5 py-4 flex items-center justify-between"
           style={{ background: 'linear-gradient(135deg,#0B2428,#1A4D53)' }}>
@@ -73,20 +73,20 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
           </button>
         </div>
 
-        <div className="p-3 border-b border-border/50 grid grid-cols-2 gap-2">
+        <div className="p-3 border-b border-border grid grid-cols-2 gap-2">
           <button onClick={() => setTab('drive')}
-            className={cn('rounded-xl px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 border', tab === 'drive' ? 'bg-primary/10 text-primary border-primary/30' : 'border-border/60 hover:bg-muted')}>
+            className={cn('rounded-xl px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 border', tab === 'drive' ? 'bg-primary text-primary border-primary/30' : 'border-border hover:bg-muted')}>
             <HardDrive className="w-4 h-4" />{isAr ? 'ملفاتي في Drive' : 'My Drive'}
           </button>
           <button onClick={() => setTab('computer')}
-            className={cn('rounded-xl px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 border', tab === 'computer' ? 'bg-primary/10 text-primary border-primary/30' : 'border-border/60 hover:bg-muted')}>
+            className={cn('rounded-xl px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 border', tab === 'computer' ? 'bg-primary text-primary border-primary/30' : 'border-border hover:bg-muted')}>
             <UploadCloud className="w-4 h-4" />{isAr ? 'رفع من الجهاز عبر Drive' : 'Upload via Drive'}
           </button>
         </div>
 
         {tab === 'drive' ? (
           <>
-            <div className="px-4 py-3 border-b border-border/50">
+            <div className="px-4 py-3 border-b border-border">
               <div className="relative">
                 <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 left-2.5 text-muted-foreground pointer-events-none" />
                 <input value={search} onChange={e => setSearch(e.target.value)}
@@ -101,7 +101,7 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
                 return (
                   <button key={file.id} onClick={() => toggle(file.id)}
                     className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-start transition-all mb-1 border',
-                      isSel ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted border-transparent')}>
+                      isSel ? 'bg-primary border-primary/30' : 'hover:bg-muted border-transparent')}>
                     <FileIcon type={file.type} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{file.name}</p>
@@ -113,8 +113,8 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
               })}
             </div>
 
-            <div className="p-4 border-t border-border/50 flex gap-3">
-              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors">
+            <div className="p-4 border-t border-border flex gap-3">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
                 {isAr ? 'إلغاء' : 'Cancel'}
               </button>
               <button disabled={selected.size === 0} onClick={() => onSelect(MOCK_DRIVE_FILES.filter(f => selected.has(f.id)))}
@@ -125,7 +125,7 @@ function DrivePickerModal({ onSelect, onClose }: { onSelect: (files: typeof MOCK
           </>
         ) : (
           <div className="p-6 space-y-4 overflow-y-auto">
-            <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-8 text-center">
+            <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary p-8 text-center">
               <UploadCloud className="w-12 h-12 mx-auto text-primary mb-3" />
               <h3 className="font-semibold mb-2">{isAr ? 'رفع من جهازك، لكن عبر Google Drive' : 'Upload from your computer, through Google Drive'}</h3>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
@@ -172,7 +172,7 @@ function FolderCreator() {
   }
 
   return (
-    <div className="glass-card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
+    <div className="glass-card rounded-lg p-4 flex flex-col sm:flex-row gap-3">
       <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && create()}
         placeholder={isAr ? 'مثال: Parallel Computing' : 'Example: Parallel Computing'}
         className="flex-1 px-3 py-2.5 text-sm rounded-xl bg-muted border border-border" />
@@ -243,10 +243,10 @@ export function DriveUploader() {
       </div>
 
       <motion.div whileHover={{ scale: 1.005 }} onClick={() => setShowPicker(true)}
-        className="relative overflow-hidden rounded-2xl p-10 text-center cursor-pointer border-2 border-dashed border-primary/30 hover:border-primary/60 transition-all"
+        className="relative overflow-hidden rounded-lg p-10 text-center cursor-pointer border-2 border-dashed border-primary/30 hover:border-primary/60 transition-all"
         style={{ background: 'linear-gradient(135deg,rgba(26,77,83,0.12),rgba(62,154,166,0.06))' }}>
         <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2.5, repeat: Infinity }}
-          className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+          className="w-16 h-16 rounded-lg mx-auto mb-4 flex items-center justify-center"
           style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}>
           <CloudUpload className="w-8 h-8 text-white" />
         </motion.div>
@@ -259,22 +259,22 @@ export function DriveUploader() {
           <HardDrive className="w-4 h-4" />{t('فتح Google Drive', 'Open Google Drive')}
         </div>
         <p className="text-xs text-muted-foreground/60 mt-4">
-          🔒 {t('لا يوجد رفع مباشر إلى خادم الموقع', 'No direct upload to the app server')}
+          {t('لا يوجد رفع مباشر إلى خادم الموقع', 'No direct upload to the app server')}
         </p>
       </motion.div>
 
       <div className="grid lg:grid-cols-[280px,1fr] gap-5">
         <div className="space-y-4">
           <FolderCreator />
-          <div className="glass-card rounded-2xl p-3 space-y-2">
+          <div className="glass-card rounded-lg p-3 space-y-2">
             <button onClick={() => setActiveFolderId('all')}
-              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-start', activeFolderId === 'all' ? 'bg-primary/10 text-primary' : 'hover:bg-muted')}>
+              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-start', activeFolderId === 'all' ? 'bg-primary text-primary' : 'hover:bg-muted')}>
               <Inbox className="w-4 h-4" />
               <span className="flex-1">{t('كل الملفات', 'All files')}</span>
               <span className="text-xs opacity-60">{files.length}</span>
             </button>
             <button onClick={() => setActiveFolderId('uncategorized')}
-              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-start', activeFolderId === 'uncategorized' ? 'bg-primary/10 text-primary' : 'hover:bg-muted')}>
+              className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-start', activeFolderId === 'uncategorized' ? 'bg-primary text-primary' : 'hover:bg-muted')}>
               <Folder className="w-4 h-4" />
               <span className="flex-1">{t('بدون مجلد', 'Uncategorized')}</span>
               <span className="text-xs opacity-60">{files.filter(f => !f.folderId).length}</span>
@@ -282,7 +282,7 @@ export function DriveUploader() {
             {resourceFolders.map(folder => (
               <div key={folder.id} className="group flex items-center gap-1">
                 <button onClick={() => setActiveFolderId(folder.id)}
-                  className={cn('flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-start', activeFolderId === folder.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted')}>
+                  className={cn('flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-start', activeFolderId === folder.id ? 'bg-primary text-primary' : 'hover:bg-muted')}>
                   <span className="w-3 h-3 rounded-full" style={{ background: folder.color }} />
                   <span className="flex-1 truncate">{folder.name}</span>
                   <span className="text-xs opacity-60">{folderCounts[folder.id] || 0}</span>
@@ -303,7 +303,7 @@ export function DriveUploader() {
             {t('الملفات', 'Files')} ({visibleFiles.length})
           </h3>
           {visibleFiles.length === 0 ? (
-            <div className="glass-card rounded-2xl p-12 text-center">
+            <div className="glass-card rounded-lg p-12 text-center">
               <HardDrive className="w-12 h-12 text-muted-foreground/25 mx-auto mb-4" />
               <p className="text-muted-foreground text-sm mb-4">{t('لا توجد ملفات هنا بعد', 'No files here yet')}</p>
               <button onClick={() => setShowPicker(true)} className="btn-teal px-5 py-2">
@@ -351,7 +351,7 @@ export function DriveUploader() {
                 ))}
               </AnimatePresence>
               <button onClick={() => setShowPicker(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border/60 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors">
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors">
                 <MoveRight className="w-4 h-4" />{t('إضافة المزيد', 'Add more')}
               </button>
             </div>

@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase'
+import { upsertExam, deleteExamRemote } from '@/lib/sync'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -85,7 +87,7 @@ function ExamForm({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="relative z-10 w-full max-w-md glass-card rounded-2xl overflow-hidden shadow-teal-lg"
+        className="relative z-10 w-full max-w-md glass-card rounded-lg overflow-hidden shadow-teal-lg"
       >
         {/* Header strip with color */}
         <div className="h-1.5 w-full" style={{ background: form.color }} />
@@ -141,7 +143,7 @@ function ExamForm({
           </div>
 
           <div className="flex gap-3 pt-1">
-            <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors">
+            <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
               {t('cancel')}
             </button>
             <button onClick={handleSubmit} className="btn-teal flex-1 py-2.5">
@@ -167,7 +169,7 @@ function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20, height: 0 }}
       layout
-      className={cn('glass-card rounded-2xl overflow-hidden transition-all', passed && 'opacity-60')}
+      className={cn('glass-card rounded-lg overflow-hidden transition-all', passed && 'opacity-60')}
     >
       {/* Color bar */}
       <div className="h-1" style={{ background: exam.color }} />
@@ -200,27 +202,27 @@ function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; 
           </div>
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: exam.color }} />
-            <span>{exam.time || '—'}</span>
+            <span>{exam.time || '-'}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5 shrink-0" style={{ color: exam.color }} />
-            <span className="truncate" dir="auto">{exam.location || '—'}</span>
+            <span className="truncate" dir="auto">{exam.location || '-'}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Hash className="w-3.5 h-3.5 shrink-0" style={{ color: exam.color }} />
-            <span>{exam.seatCode || '—'}</span>
+            <span>{exam.seatCode || '-'}</span>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 mt-4 pt-3 border-t border-border/40">
+        <div className="flex gap-2 mt-4 pt-3 border-t border-border">
           <button onClick={onEdit}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
             <Edit3 className="w-3.5 h-3.5" />{t('edit')}
           </button>
           {confirmDelete ? (
             <div className="flex gap-2 ms-auto">
-              <button onClick={() => setConfirmDelete(false)} className="text-xs px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">{t('cancel')}</button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs px-3 py-1.5 rounded-lg bg-muted hover:bg-muted transition-colors">{t('cancel')}</button>
               <button onClick={onDelete} className="text-xs px-3 py-1.5 rounded-lg bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors">{t('delete')}</button>
             </div>
           ) : (
@@ -238,7 +240,7 @@ function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; 
 // ─── Main ExamTracker ─────────────────────────────────────────────────────────
 export function ExamTracker() {
   const { t } = useT()
-  const { exams, addExam, updateExam, deleteExam } = useStore()
+  const { exams, supabaseUser, addExam, updateExam, deleteExam } = useStore()
   const [showForm, setShowForm] = useState(false)
   const [editingExam, setEditingExam] = useState<Exam | null>(null)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'passed'>('upcoming')
@@ -283,7 +285,7 @@ export function ExamTracker() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1.5 bg-muted/50 p-1 rounded-xl w-fit">
+      <div className="flex gap-1.5 bg-muted p-1 rounded-xl w-fit">
         {(['all', 'upcoming', 'passed'] as const).map(f => (
           <button key={f}
             onClick={() => setFilter(f)}
@@ -298,7 +300,7 @@ export function ExamTracker() {
 
       {/* Exam grid */}
       {filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
+        <div className="glass-card rounded-lg p-12 text-center">
           <CalendarCheck className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-muted-foreground">{t('noExams')}</p>
           <button onClick={() => setShowForm(true)} className="btn-teal mt-4 mx-auto">

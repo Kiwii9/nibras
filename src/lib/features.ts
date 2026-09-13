@@ -1,5 +1,5 @@
 // ─── Feature Flags ─────────────────────────────────────────────────────────────
-// Central registry — admin can toggle these at runtime from /admin panel
+// Central registry - admin can toggle these at runtime from /admin panel
 
 export interface FeatureFlag {
   key: string

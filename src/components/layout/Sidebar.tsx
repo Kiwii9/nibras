@@ -2,141 +2,201 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, MessageSquare, BrainCircuit, CalendarCheck,
-  Timer, FolderOpen, Settings, X, Sparkles, Coffee,
-  ExternalLink, Rocket, Info, LogOut, ChevronRight
+  Timer, FolderOpen, Settings, X, Coffee, Rocket, Info,
+  LogOut, Sun, Moon, ExternalLink, BookOpen
 } from 'lucide-react'
 import { useT } from '@/hooks/useT'
 import { useStore, useCurrentUser, getLevelFromXP, xpForNextLevel } from '@/store'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
-const NAV_ITEMS = [
+const NAV = [
   { to: '/',          icon: LayoutDashboard, key: 'dashboard'  },
   { to: '/chat',      icon: MessageSquare,   key: 'chat'       },
   { to: '/quiz',      icon: BrainCircuit,    key: 'quiz'       },
   { to: '/exams',     icon: CalendarCheck,   key: 'exams'      },
   { to: '/pomodoro',  icon: Timer,           key: 'pomodoro'   },
   { to: '/resources', icon: FolderOpen,      key: 'resources'  },
-  { to: '/roadmap',   icon: Rocket,          key: 'roadmap'    },
-  { to: '/about',     icon: Info,            key: 'about'      },
-  { to: '/settings',  icon: Settings,        key: 'settings'   },
+] as const
+
+const NAV_BOTTOM = [
+  { to: '/roadmap',  icon: Rocket,   key: 'roadmap', badge: 'NEW' },
+  { to: '/about',    icon: Info,     key: 'about'    },
+  { to: '/settings', icon: Settings, key: 'settings' },
 ] as const
 
 interface SidebarProps { open: boolean; onClose: () => void }
 
 function UserCard() {
-  const { t } = useT()
+  const { isRTL } = useT()
   const user = useCurrentUser()
-  const { logout } = useStore()
+  const { clearUserData, lang } = useStore()
   if (!user) return null
 
-  const level = getLevelFromXP(user.xp)
-  const nextXP = xpForNextLevel(user.xp)
-  const progress = Math.min((user.xp / nextXP) * 100, 100)
-  const initials = user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const level   = getLevelFromXP(user.xp ?? 0)
+  const nextXP  = xpForNextLevel(user.xp ?? 0)
+  const progress = Math.min(((user.xp ?? 0) / nextXP) * 100, 100)
+  const initials = (user.name || 'U').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    clearUserData()
+  }
 
   return (
-    <div className="p-3 border-b border-border/50">
-      <div className="glass-card rounded-xl p-3 space-y-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-            style={{ background: user.avatar }}>
+    <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 14px' }}>
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Avatar */}
+          <div style={{
+            width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--primary)', color: 'var(--primary-foreground)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 700,
+          }}>
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold truncate">{user.name}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
           </div>
-          <button onClick={logout}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-            title={t('logout' as any) ?? 'Logout'}>
-            <LogOut className="w-3.5 h-3.5" />
+          <button onClick={handleLogout} title="Logout"
+            style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', transition: '.15s ease', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,.1)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+            <LogOut size={14} />
           </button>
         </div>
 
-        {/* Level & XP */}
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span className="badge-gold">Lv {level}</span>
-          <span>{user.xp} / {nextXP} XP</span>
-        </div>
-        <div className="h-1 bg-muted rounded-full overflow-hidden">
-          <motion.div className="h-full rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.8 }}
-            style={{ background: 'linear-gradient(90deg, #2D7A84, #3E9AA6)' }} />
-        </div>
-
-        {/* Streak */}
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <span>🔥</span>
-          <span>{user.studyStreak} day streak</span>
+        {/* XP bar */}
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)',
+              background: 'rgba(201,168,76,.18)', color: 'var(--gold-dark)',
+            }}>Lv {level}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono',monospace", fontVariantNumeric: 'tabular-nums' }}>
+              {user.xp ?? 0} / {nextXP} XP
+            </span>
+          </div>
+          <div className="progress-bar">
+            <motion.div className="progress-bar-fill"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: .8 }} />
+          </div>
+          {(user.studyStreak ?? 0) > 0 && (
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+              {user.studyStreak} {lang === 'ar' ? 'يوم متتالي' : 'day streak'}
+            </p>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
-  const { t, isRTL } = useT()
+function NavItem({ to, icon: Icon, label, badge, onClose }: { to: string; icon: React.ElementType; label: string; badge?: string; onClose: () => void }) {
   const location = useLocation()
-  const theme = useStore(s => s.theme)
+  const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+
+  return (
+    <Link to={to} onClick={onClose}
+      className={cn('rail-item', isActive && 'active')}
+      style={isActive ? {} : {}}>
+      <Icon size={17} />
+      <span style={{ flex: 1 }}>{label}</span>
+      {badge && (
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--radius-full)',
+          background: 'rgba(109,94,248,.16)', color: 'var(--violet)',
+        }}>{badge}</span>
+      )}
+    </Link>
+  )
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
+  const { t, lang, isRTL } = useT()
+  const { theme, setTheme } = useStore()
 
   const content = (
-    <div className="flex flex-col h-full">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
       {/* Brand */}
-      <div className="flex items-center justify-between p-4 pb-3 border-b border-border/50">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg,#1A4D53,#3E9AA6)' }}>
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
+      <div className="rail-brand" style={{ justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src={theme === 'dark' ? '/nibras-symbol-reversed.svg' : '/nibras-symbol-color.svg'} alt="نِبراس" style={{ width: 32, height: 32 }} />
           <div>
-            <h1 className="font-display text-lg text-foreground leading-none">نِبْرَاس</h1>
-            <p className="text-[10px] text-muted-foreground">Nibras</p>
+            <div className="wordmark" style={{ fontFamily: "'Reem Kufi',sans-serif", fontSize: 20, color: 'var(--text-primary)', lineHeight: 1 }}>نِبراس</div>
+            <div className="tagline" style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1 }}>Nibras</div>
           </div>
         </div>
-        <button onClick={onClose} className="lg:hidden p-1.5 rounded-md hover:bg-muted text-muted-foreground">
-          <X className="w-4 h-4" />
+        <button onClick={onClose} className="lg:hidden"
+          style={{ padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)' }}>
+          <X size={16} />
         </button>
       </div>
 
-      {/* User card */}
+      {/* User */}
       <UserCard />
 
       {/* Nav */}
-      <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map(({ to, icon: Icon, key }) => {
-          const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
-          return (
-            <Link key={to} to={to} onClick={onClose}
-              className={cn('nav-link relative', isActive && 'active')}>
-              <Icon className="w-4 h-4 shrink-0" />
-              <span className="text-sm">{t(key as any)}</span>
-              {key === 'roadmap' && (
-                <span className="ms-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">NEW</span>
-              )}
-              {isActive && (
-                <motion.div layoutId="nav-pill"
-                  className="absolute inset-0 rounded-lg -z-10"
-                  style={{ background: theme === 'dark' ? 'hsl(185 50% 14%)' : 'hsl(var(--primary)/0.08)' }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
-              )}
-            </Link>
-          )
-        })}
+      <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
+        <div style={{ padding: '0 0 4px' }}>
+          {NAV.map(({ to, icon, key }) => (
+            <NavItem key={to} to={to} icon={icon} label={t(key as any)} onClose={onClose} />
+          ))}
+        </div>
+        <div style={{ padding: '0', borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 4 }}>
+          {([...NAV_BOTTOM] as any[]).map((item) => (
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={t(item.key)} badge={item.badge} onClose={onClose} />
+          ))}
+        </div>
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-border/50 space-y-2">
-        <div className="flex flex-wrap gap-1.5">
-          <span className="badge-gold text-[10px]">✦ 100% مجاني</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">Free Forever</span>
+      <div style={{ padding: '14px', borderTop: '1px solid var(--border)' }}>
+        {/* Light/Dark toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{lang === 'ar' ? 'المظهر' : 'Theme'}</span>
+          <div style={{ display: 'flex', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)', padding: 3, gap: 3 }}>
+            {(['light','dark'] as const).map(m => (
+              <button key={m} onClick={() => setTheme(m)}
+                style={{
+                  padding: '4px 9px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 600,
+                  background: theme === m ? 'var(--primary)' : 'transparent',
+                  color: theme === m ? 'var(--primary-foreground)' : 'var(--text-muted)',
+                  transition: '.15s ease', display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                {m === 'light' ? <Sun size={11}/> : <Moon size={11}/>}
+                {m === 'light' ? (lang === 'ar' ? 'فاتح' : 'Light') : (lang === 'ar' ? 'داكن' : 'Dark')}
+              </button>
+            ))}
+          </div>
         </div>
-        <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors group">
-          <Coffee className="w-3.5 h-3.5 text-[#FF5E5B] group-hover:scale-110 transition-transform" />
-          <span>تم تطويره من قبل KIWI | محمد حمدي</span>
-          <ExternalLink className="w-3 h-3 ms-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+
+        {/* Alpha badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: '2px 9px',
+            borderRadius: 'var(--radius-full)',
+            background: 'rgba(109,94,248,0.14)',
+            color: 'var(--violet)',
+            border: '1px solid rgba(109,94,248,0.25)',
+          }}>Alpha</span>
+        </div>
+        {/* Legal links */}
+        <div style={{ display:'flex', gap:12, marginBottom:10 }}>
+          <a href="/privacy" style={{ fontSize:10.5, color:'var(--text-muted)', textDecoration:'none' }}>Privacy</a>
+          <a href="/terms"   style={{ fontSize:10.5, color:'var(--text-muted)', textDecoration:'none' }}>Terms</a>
+        </div>
+
+        <a href="https://ko-fi.com/kiwii9#" target="_blank" rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none' }}>
+          <Coffee size={13} style={{ color: '#FF5E5B', flexShrink: 0 }} />
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>تم تطويره من قبل KIWI | محمد حمدي</span>
+          <ExternalLink size={11} style={{ flexShrink: 0, opacity: .5 }} />
         </a>
       </div>
     </div>
@@ -145,10 +205,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
       {/* Desktop */}
-      <aside className={cn(
-        'hidden lg:flex flex-col w-60 h-screen border-e border-border/60 shrink-0 bg-card/90 backdrop-blur-sm',
-        theme === 'dark' && 'bg-[#0b2428]/90'
-      )}>
+      <aside className="rail hidden lg:flex" style={{ flexDirection: 'column' }}>
         {content}
       </aside>
 
@@ -157,17 +214,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {open && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={onClose} className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40" />
+              onClick={onClose}
+              className="lg:hidden fixed inset-0 z-40"
+              style={{ background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }} />
             <motion.aside
               initial={{ x: isRTL ? '100%' : '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: isRTL ? '100%' : '-100%' }}
               transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-              className={cn(
-                'lg:hidden fixed top-0 bottom-0 w-64 z-50 flex flex-col border-e border-border/60 bg-card shadow-2xl',
-                isRTL ? 'right-0 border-s border-e-0' : 'left-0',
-                theme === 'dark' && 'bg-[#0b2428]'
-              )}>
+              className="rail lg:hidden fixed top-0 bottom-0 z-50"
+              style={{ [isRTL ? 'right' : 'left']: 0, boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column' }}>
               {content}
             </motion.aside>
           </>

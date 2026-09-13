@@ -1,3 +1,5 @@
+import type { User as SupaUser, Session } from '@supabase/supabase-js'
+import type { Profile } from '@/lib/supabase'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -142,6 +144,12 @@ interface NibrasState {
   users: User[]
   currentUserId: string | null
   isAuthenticated: boolean
+  supabaseUser: SupaUser | null
+  supabaseSession: Session | null
+  profile: Profile | null
+  setSupabaseUser: (user: SupaUser | null, session: Session | null) => void
+  setProfile: (p: Profile | null) => void
+  clearUserData: () => void
   authError: string
   register: (name: string, email: string, password: string) => boolean
   login: (email: string, password: string) => boolean
@@ -157,6 +165,7 @@ interface NibrasState {
   setApiConfig: (c: ApiConfig) => void
 
   files: UploadedFile[]
+  setFiles: (f: UploadedFile[]) => void
   resourceFolders: ResourceFolder[]
   addFile: (f: UploadedFile) => void
   removeFile: (id: string) => void
@@ -166,6 +175,7 @@ interface NibrasState {
   moveFileToFolder: (fileId: string, folderId: string | null) => void
 
   chatSessions: ChatSession[]
+  setChatSessions: (s: ChatSession[]) => void
   activeChatId: string | null
   addChatSession: (s: ChatSession) => void
   updateChatSession: (id: string, msgs: Message[]) => void
@@ -173,6 +183,7 @@ interface NibrasState {
   deleteChatSession: (id: string) => void
 
   quizSessions: QuizSession[]
+  setQuizSessions: (s: QuizSession[]) => void
   activeQuizId: string | null
   addQuizSession: (s: QuizSession) => void
   updateQuizSession: (id: string, partial: Partial<QuizSession>) => void
@@ -180,11 +191,13 @@ interface NibrasState {
   deleteQuizSession: (id: string) => void
 
   exams: Exam[]
+  setExams: (e: Exam[]) => void
   addExam: (e: Exam) => void
   updateExam: (id: string, partial: Partial<Exam>) => void
   deleteExam: (id: string) => void
 
   studyPlan: StudyPlanItem[]
+  setStudyPlan: (i: StudyPlanItem[]) => void
   addStudyPlanItem: (item: StudyPlanItem) => void
   toggleStudyPlanItem: (id: string) => void
   deleteStudyPlanItem: (id: string) => void
@@ -203,6 +216,12 @@ export const useStore = create<NibrasState>()(
       users: [],
       currentUserId: null,
       isAuthenticated: false,
+      supabaseUser: null,
+      supabaseSession: null,
+      profile: null,
+      setSupabaseUser: (user, session) => set({ supabaseUser: user, supabaseSession: session, isAuthenticated: !!user }),
+      setProfile: (profile) => set({ profile }),
+      clearUserData: () => set({ supabaseUser: null, supabaseSession: null, profile: null, isAuthenticated: false, files: [], chatSessions: [], quizSessions: [], exams: [], studyPlan: [], activeChatId: null, activeQuizId: null, dailyMessageCount: 0 }),
       authError: '',
 
       register: (name, email, password) => {
@@ -283,6 +302,7 @@ export const useStore = create<NibrasState>()(
       resourceFolders: [
         { id: 'folder-general', name: 'General / عام', color: '#2D7A84', createdAt: new Date().toISOString() },
       ],
+      setFiles: (files) => set({ files }),
       addFile: (f) => set((s) => ({ files: [{ ...f, folderId: f.folderId ?? null }, ...s.files] })),
       removeFile: (id) => set((s) => ({ files: s.files.filter((f) => f.id !== id) })),
       addResourceFolder: (folder) => set((s) => ({ resourceFolders: [folder, ...s.resourceFolders] })),
@@ -299,6 +319,7 @@ export const useStore = create<NibrasState>()(
 
       chatSessions: [],
       activeChatId: null,
+      setChatSessions: (chatSessions) => set({ chatSessions }),
       addChatSession: (s) => set((st) => ({ chatSessions: [s, ...st.chatSessions], activeChatId: s.id })),
       updateChatSession: (id, msgs) =>
         set((st) => ({ chatSessions: st.chatSessions.map((s) => (s.id === id ? { ...s, messages: msgs } : s)) })),
@@ -310,6 +331,7 @@ export const useStore = create<NibrasState>()(
 
       quizSessions: [],
       activeQuizId: null,
+      setQuizSessions: (quizSessions) => set({ quizSessions }),
       addQuizSession: (s) => set((st) => ({ quizSessions: [s, ...st.quizSessions], activeQuizId: s.id })),
       updateQuizSession: (id, partial) =>
         set((st) => ({ quizSessions: st.quizSessions.map((s) => (s.id === id ? { ...s, ...partial } : s)) })),
@@ -320,11 +342,13 @@ export const useStore = create<NibrasState>()(
       })),
 
       exams: [],
+      setExams: (exams) => set({ exams }),
       addExam: (e) => set((st) => ({ exams: [e, ...st.exams] })),
       updateExam: (id, partial) => set((st) => ({ exams: st.exams.map((e) => (e.id === id ? { ...e, ...partial } : e)) })),
       deleteExam: (id) => set((st) => ({ exams: st.exams.filter((e) => e.id !== id) })),
 
       studyPlan: [],
+      setStudyPlan: (studyPlan) => set({ studyPlan }),
       addStudyPlanItem: (item) => set((st) => ({ studyPlan: [item, ...st.studyPlan] })),
       toggleStudyPlanItem: (id) => set((st) => ({ studyPlan: st.studyPlan.map(i => i.id === id ? { ...i, done: !i.done } : i) })),
       deleteStudyPlanItem: (id) => set((st) => ({ studyPlan: st.studyPlan.filter(i => i.id !== id) })),
@@ -340,17 +364,39 @@ export const useStore = create<NibrasState>()(
       }),
       resetMessageCount: () => set({ dailyMessageCount: 0, lastMessageDate: '' }),
     }),
-    { name: 'nibras-v2' }
+    { name: 'nibras-v3', partialize: (s) => ({ lang: s.lang, theme: s.theme, apiConfig: s.apiConfig, pomodoroSettings: s.pomodoroSettings, dailyMessageCount: s.dailyMessageCount, lastMessageDate: s.lastMessageDate }) }
   )
 )
 
 export const useCurrentUser = () => {
+  // Prefer Supabase profile (cloud auth) over local users array
+  const profile = useStore(s => s.profile)
   const { users, currentUserId } = useStore()
+
+  if (profile) {
+    // Map Supabase Profile (snake_case) to app User shape (camelCase)
+    return {
+      id:                profile.id,
+      name:              profile.name,
+      email:             profile.email,
+      passwordHash:      '',
+      createdAt:         profile.created_at,
+      avatar:            profile.avatar_color ?? '#2D7A84',
+      studyStreak:       profile.study_streak ?? 0,
+      lastActiveDate:    profile.last_active_date ?? '',
+      totalStudyMinutes: profile.total_study_minutes ?? 0,
+      level:             profile.level ?? 1,
+      xp:                profile.xp ?? 0,
+      // Extra fields from Profile
+      role:              profile.role,
+      avatarColor:       profile.avatar_color,
+    } as User & { role: string; avatarColor: string }
+  }
   return users.find(u => u.id === currentUserId) ?? null
 }
 
 export const useIsAdmin = () => {
   const user = useCurrentUser()
-  // Admin email check — expand as needed
+  // Admin email check - expand as needed
   return user?.email === 'm3647807@gmail.com'
 }

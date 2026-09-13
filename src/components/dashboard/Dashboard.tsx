@@ -1,3 +1,4 @@
+import { upsertStudyPlanItem, deleteStudyPlanItemRemote } from '@/lib/sync'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
@@ -23,7 +24,7 @@ const QUICK_ACTIONS = [
 function StudyPlanWidget() {
   const { lang } = useT()
   const isAr = lang === 'ar'
-  const { studyPlan, addStudyPlanItem, toggleStudyPlanItem, deleteStudyPlanItem } = useStore()
+  const { studyPlan, addStudyPlanItem, toggleStudyPlanItem, deleteStudyPlanItem , supabaseUser } = useStore()
   const [adding, setAdding] = useState(false)
   const [subject, setSubject] = useState('')
   const [goal, setGoal] = useState('')
@@ -42,7 +43,7 @@ function StudyPlanWidget() {
   }
 
   return (
-    <div className="glass-card rounded-2xl p-5">
+    <div className="glass-card rounded-lg p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-sm">{isAr ? 'مهام اليوم' : "Today's Tasks"}</h3>
         <button onClick={() => setAdding(v => !v)}
@@ -73,7 +74,7 @@ function StudyPlanWidget() {
 
       {today.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-xs text-muted-foreground">{isAr ? 'لا توجد مهام — أضف مهمة!' : 'No tasks — add one!'}</p>
+          <p className="text-xs text-muted-foreground">{isAr ? 'لا توجد مهام - أضف مهمة!' : 'No tasks - add one!'}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -120,18 +121,18 @@ export function Dashboard() {
     { label: t('totalFiles'), value: files.length, icon: FolderOpen, color: '#4A90D9', delay: 0.05 },
     { label: t('totalQuizzes'), value: completedQuizzes, icon: BrainCircuit, color: '#3E9AA6', delay: 0.10 },
     { label: t('upcomingExams'), value: upcomingExams.length, icon: CalendarCheck, color: '#C9A84C', delay: 0.15 },
-    { label: isAr ? 'متوسط الدرجات' : 'Avg Score', value: completedQuizzes ? `${avgScore}%` : '—', icon: TrendingUp, color: '#56A86B', delay: 0.20 },
+    { label: isAr ? 'متوسط الدرجات' : 'Avg Score', value: completedQuizzes ? `${avgScore}%` : '-', icon: TrendingUp, color: '#56A86B', delay: 0.20 },
   ]
 
   return (
     <div className="section-wrapper space-y-8">
       {/* Hero */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden glass-card rounded-2xl p-7 teal-noise"
+        className="relative overflow-hidden glass-card rounded-lg p-7 teal-noise"
         style={{ background: 'linear-gradient(135deg,#0B2428 0%,#1A4D53 60%,#2D7A84 100%)' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
-            <span className="badge-gold">✦ {t('free')}</span>
+            <span className="badge-neutral text-xs">{t('free')}</span>
             <span className="text-xs text-teal-200/50">•</span>
             <span className="text-xs text-teal-200/50">{t('poweredBy')}</span>
           </div>
@@ -161,11 +162,11 @@ export function Dashboard() {
 
           <div className="flex gap-3 flex-wrap">
             <Link to="/quiz"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/20 transition-all">
+              className="btn" style={{ background:"rgba(255,255,255,.15)", color:"#fff", borderColor:"rgba(255,255,255,.2)" }}>
               <Sparkles className="w-4 h-4" />{t('startNewQuiz')}
             </Link>
             <Link to="/chat"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-transparent hover:bg-white/10 text-teal-200 border border-teal-400/30 transition-all">
+              className="btn btn-secondary" style={{ color:"#A0D8DE", borderColor:"rgba(62,154,166,.3)" }}>
               <MessageSquare className="w-4 h-4" />{t('chat')}
             </Link>
           </div>
@@ -180,12 +181,14 @@ export function Dashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {stats.map(({ label, value, icon: Icon, color, delay }) => (
             <motion.div key={label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay }} className="glass-card rounded-xl p-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: `${color}22` }}>
-                <Icon className="w-4 h-4" style={{ color }} />
+              transition={{ delay }} className="stat-card">
+              <div className="stat-top">
+                <div className="icon-chip" style={{ background: `${color}1A`, color }}>
+                  <Icon size={17} />
+                </div>
               </div>
-              <p className="font-display text-2xl text-foreground leading-none">{value}</p>
-              <p className="text-xs text-muted-foreground mt-1">{label}</p>
+              <div className="stat-num" style={{ fontSize: 28 }}>{value}</div>
+              <div className="stat-label">{label}</div>
             </motion.div>
           ))}
         </div>
@@ -254,13 +257,13 @@ export function Dashboard() {
 
       {/* Ko-fi / developer credit */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-        className="glass-card rounded-2xl p-5 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-[#FF5E5B]/15 flex items-center justify-center shrink-0 text-lg">🥝</div>
+        className="glass-card rounded-lg p-5 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl bg-[#FF5E5B]/15 flex items-center justify-center shrink-0 text-lg"></div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">{isAr ? 'تم تطويره من قبل KIWI | محمد حمدي' : 'Developed by KIWI | Mohammed Hamdi'}</p>
           <p className="text-xs text-muted-foreground">{isAr ? 'ادعم الأداة وساعد في إبقائها مجانية' : 'Support the tool and help keep it free'}</p>
         </div>
-        <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer"
+        <a href="https://ko-fi.com/kiwii9#" target="_blank" rel="noopener noreferrer"
           className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-[#FF5E5B]/15 text-[#FF5E5B] hover:bg-[#FF5E5B]/25 transition-colors">
           <Coffee className="w-4 h-4" /> Ko-fi <ExternalLink className="w-3 h-3" />
         </a>

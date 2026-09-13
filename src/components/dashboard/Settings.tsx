@@ -21,8 +21,8 @@ const PROVIDERS = [
 
 function Section({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return (
-    <div className="glass-card rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border/50 bg-muted/30">
+    <div className="glass-card rounded-lg overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border bg-muted">
         <Icon className="w-4 h-4 text-primary" />
         <h3 className="font-semibold text-sm">{title}</h3>
       </div>
@@ -59,7 +59,7 @@ export function SettingsPage() {
           {(['ar', 'en'] as const).map(l => (
             <button key={l} onClick={() => setLang(l)}
               className={cn('flex items-center gap-3 p-4 rounded-xl border transition-all',
-                lang === l ? 'border-primary bg-primary/10' : 'border-border/60 hover:bg-muted')}>
+                lang === l ? 'border-primary bg-primary' : 'border-border hover:bg-muted')}>
               <span className="text-xl">{l === 'ar' ? '🇸🇦' : '🇬🇧'}</span>
               <div className="text-start">
                 <p className="text-sm font-semibold">{l === 'ar' ? 'العربية' : 'English'}</p>
@@ -77,8 +77,8 @@ export function SettingsPage() {
           {(['dark', 'light'] as const).map(th => (
             <button key={th} onClick={() => setTheme(th)}
               className={cn('flex items-center gap-3 p-4 rounded-xl border transition-all',
-                theme === th ? 'border-primary bg-primary/10' : 'border-border/60 hover:bg-muted')}>
-              {th === 'dark' ? <Moon className="w-5 h-5 text-primary/70" /> : <Sun className="w-5 h-5 text-gold" />}
+                theme === th ? 'border-primary bg-primary' : 'border-border hover:bg-muted')}>
+              {th === 'dark' ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-gold" />}
               <div className="text-start">
                 <p className="text-sm font-semibold">{t(`${th}Mode` as any)}</p>
                 <p className="text-xs text-muted-foreground">{th === 'dark' ? 'Deep Teal Royal' : 'Clean & Bright'}</p>
@@ -95,12 +95,12 @@ export function SettingsPage() {
           {/* 401 fix explanation */}
           <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-4 text-xs text-amber-600 dark:text-amber-400 leading-relaxed">
             <p className="font-semibold mb-1">
-              {isAr ? '⚠️ تصحيح خطأ 401 — كيف يعمل؟' : '⚠️ 401 Error Fix — How it works'}
+              {isAr ? 'تصحيح خطأ 401 - كيف يعمل؟' : '401 Error Fix - How it works'}
             </p>
             <p>
               {isAr
-                ? 'إذا ظهر خطأ المصادقة، فهذا يعني أن مفتاح API غير صحيح أو مفقود. أضف المفتاح أدناه وسيُستخدم آمناً من جهازك فقط — لا يُرسل لأي خادم خارجي.'
-                : 'If you see an auth error, your API key is missing or invalid. Add it below — it\'s used securely from your device only, never sent to any external server.'}
+                ? 'إذا ظهر خطأ المصادقة، فهذا يعني أن مفتاح API غير صحيح أو مفقود. أضف المفتاح أدناه وسيُستخدم آمناً من جهازك فقط - لا يُرسل لأي خادم خارجي.'
+                : 'If you see an auth error, your API key is missing or invalid. Add it below - it\'s used securely from your device only, never sent to any external server.'}
             </p>
           </div>
 
@@ -111,7 +111,7 @@ export function SettingsPage() {
               {FREE_MODELS.map(m => (
                 <button key={m.model} onClick={() => setConfig(c => ({ ...c, provider: m.provider as any, model: m.model }))}
                   className={cn('w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-start transition-colors',
-                    config.model === m.model ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground')}>
+                    config.model === m.model ? 'bg-primary text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground')}>
                   <span className="flex-1">{m.label}</span>
                   {config.model === m.model && <CheckCircle className="w-3.5 h-3.5 shrink-0" />}
                   <a href={m.url} target="_blank" rel="noopener noreferrer"
@@ -170,11 +170,11 @@ export function SettingsPage() {
       </motion.button>
 
       {/* Developer credit footer */}
-      <div className="text-center py-4 border-t border-border/40">
+      <div className="text-center py-4 border-t border-border">
         <p className="text-xs text-muted-foreground mb-2">
           تم تطويره من قبل KIWI | محمد حمدي
         </p>
-        <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer"
+        <a href="https://ko-fi.com/kiwii9#" target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center gap-2 text-sm font-medium text-[#FF5E5B] hover:underline">
           <Coffee className="w-4 h-4" />
           {isAr ? 'ادعم المطوّر على Ko-fi' : 'Support developer on Ko-fi'}

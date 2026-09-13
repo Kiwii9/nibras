@@ -6,16 +6,20 @@ import { useStore } from '@/store'
 
 type SoundId = 'rain' | 'bonfire' | 'forest' | 'cafe' | 'ocean' | 'wind'
 
-const SOUNDS: { id: SoundId; emoji: string; labelAr: string; labelEn: string; color: string }[] = [
-  { id: 'rain',    emoji: '🌧️', labelAr: 'مطر',       labelEn: 'Rain',      color: '#4A90D9' },
-  { id: 'bonfire', emoji: '🔥', labelAr: 'نار',        labelEn: 'Bonfire',   color: '#E8622A' },
-  { id: 'forest',  emoji: '🌿', labelAr: 'غابة',       labelEn: 'Forest',    color: '#56A86B' },
-  { id: 'cafe',    emoji: '☕', labelAr: 'مقهى',       labelEn: 'Café',      color: '#C9A84C' },
-  { id: 'ocean',   emoji: '🌊', labelAr: 'أمواج',      labelEn: 'Ocean',     color: '#3E9AA6' },
-  { id: 'wind',    emoji: '🍃', labelAr: 'نسيم',       labelEn: 'Wind',      color: '#8B9DC3' },
+const SOUNDS: { id: SoundId; label: string; labelAr: string; color: string }[] = [
+  { id: 'rain',    label: 'Rain',    labelAr: 'مطر',    color: '#4A90D9' },
+  { id: 'bonfire', label: 'Bonfire', labelAr: 'نار',    color: '#E8622A' },
+  { id: 'forest',  label: 'Forest',  labelAr: 'غابة',   color: '#56A86B' },
+  { id: 'cafe',    label: 'Cafe',    labelAr: 'مقهى',   color: '#C9A84C' },
+  { id: 'ocean',   label: 'Ocean',   labelAr: 'امواج',  color: '#3E9AA6' },
+  { id: 'wind',    label: 'Wind',    labelAr: 'نسيم',   color: '#8B9DC3' },
 ]
 
-// ─── Sound engine — synthesizes realistic ambient audio ───────────────────────
+// Safe value clamps for Web Audio API
+const safeFreq = (f: number) => Math.max(10, Math.min(20000, f))
+const safeQ    = (q: number) => Math.max(0.001, Math.min(1000, q))
+const safeGain = (g: number) => Math.max(0, Math.min(3, g))
+
 class AmbientEngine {
   ctx: AudioContext
   master: GainNode
@@ -25,10 +29,13 @@ class AmbientEngine {
   constructor() {
     this.ctx = new AudioContext()
     this.master = this.ctx.createGain()
+    this.master.gain.value = 0.4
     this.master.connect(this.ctx.destination)
   }
 
-  setVolume(v: number) { this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.1) }
+  setVolume(v: number) {
+    this.master.gain.setTargetAtTime(safeGain(v), this.ctx.currentTime, 0.1)
+  }
 
   private noise(type: 'white' | 'brown' | 'pink' = 'white', dur = 4) {
     const sr = this.ctx.sampleRate
@@ -38,224 +45,258 @@ class AmbientEngine {
       let last = 0
       for (let i = 0; i < d.length; i++) {
         const w = Math.random() * 2 - 1
-        d[i] = (last + 0.02 * w) / 1.02 * 3.5
+        d[i] = (last + 0.02 * w) / 1.02
         last = d[i]
+        d[i] = Math.max(-1, Math.min(1, d[i] * 3.5))
       }
     } else if (type === 'pink') {
-      let b = [0,0,0,0,0,0,0]
+      const b = [0, 0, 0, 0, 0, 0, 0]
       for (let i = 0; i < d.length; i++) {
-        const w = Math.random()*2-1
-        b[0]=0.99886*b[0]+w*0.0555179; b[1]=0.99332*b[1]+w*0.0750759
-        b[2]=0.96900*b[2]+w*0.1538520; b[3]=0.86650*b[3]+w*0.3104856
-        b[4]=0.55000*b[4]+w*0.5329522; b[5]=-0.7616*b[5]-w*0.0168980
-        d[i]=(b[0]+b[1]+b[2]+b[3]+b[4]+b[5]+b[6]+w*0.5362)*0.11; b[6]=w*0.115926
+        const w = Math.random() * 2 - 1
+        b[0] = 0.99886 * b[0] + w * 0.0555179
+        b[1] = 0.99332 * b[1] + w * 0.0750759
+        b[2] = 0.96900 * b[2] + w * 0.1538520
+        b[3] = 0.86650 * b[3] + w * 0.3104856
+        b[4] = 0.55000 * b[4] + w * 0.5329522
+        b[5] = -0.7616  * b[5] - w * 0.0168980
+        d[i] = (b[0]+b[1]+b[2]+b[3]+b[4]+b[5]+b[6]+w*0.5362) * 0.11
+        b[6] = w * 0.115926
+        d[i] = Math.max(-1, Math.min(1, d[i]))
       }
     } else {
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
     }
     const src = this.ctx.createBufferSource()
-    src.buffer = buf; src.loop = true
+    src.buffer = buf
+    src.loop = true
     return src
   }
 
-  private filter(type: BiquadFilterType, freq: number, Q = 1) {
+  private filter(type: BiquadFilterType, freq: number, Q = 1, gain = 0) {
     const f = this.ctx.createBiquadFilter()
-    f.type = type; f.frequency.value = freq; f.Q.value = Q
+    f.type = type
+    f.frequency.value = safeFreq(freq)
+    f.Q.value = safeQ(Q)
+    if (gain !== 0) f.gain.value = gain
     return f
   }
 
   private gain(val: number) {
-    const g = this.ctx.createGain(); g.gain.value = val; return g
-  }
-
-  private lfo(rate: number, depth: number, target: AudioParam) {
-    const osc = this.ctx.createOscillator()
     const g = this.ctx.createGain()
-    osc.frequency.value = rate
-    g.gain.value = depth
-    osc.connect(g); g.connect(target)
-    osc.start(); this.nodes.push(osc, g)
+    g.gain.value = safeGain(val)
+    return g
   }
 
-  // 🌧️ Rain — layered filtered noise + random drip tones
+  // Slow LFO using setInterval instead of AudioParam automation (avoids instability)
+  private slowLFO(targetNode: GainNode, center: number, depth: number, periodMs: number) {
+    let t = Math.random() * Math.PI * 2
+    const step = (2 * Math.PI * 50) / periodMs
+    const iv = setInterval(() => {
+      t += step
+      const v = safeGain(center + depth * Math.sin(t))
+      targetNode.gain.setTargetAtTime(v, this.ctx.currentTime, 0.5)
+    }, 50)
+    this.intervals.push(iv)
+  }
+
   buildRain() {
-    // Heavy rain body
+    // Rain body - filtered white noise
     const body = this.noise('white')
-    const lp = this.filter('lowpass', 1800, 0.8)
-    const hp = this.filter('highpass', 400)
-    const gBody = this.gain(0.55)
+    const hp = this.filter('highpass', 400, 0.5)
+    const lp = this.filter('lowpass', 1800, 0.5)
+    const gBody = this.gain(0.5)
     body.connect(hp); hp.connect(lp); lp.connect(gBody); gBody.connect(this.master)
-    body.start(); this.nodes.push(body, lp, hp, gBody)
+    body.start()
+    this.nodes.push(body, hp, lp, gBody)
+    this.slowLFO(gBody, 0.5, 0.12, 8000)
 
-    // Soft rumble layer
+    // Rumble layer
     const rumble = this.noise('brown')
-    const rumbleF = this.filter('lowpass', 200)
-    const gRumble = this.gain(0.18)
+    const rumbleF = this.filter('lowpass', 180, 0.5)
+    const gRumble = this.gain(0.15)
     rumble.connect(rumbleF); rumbleF.connect(gRumble); gRumble.connect(this.master)
-    rumble.start(); this.nodes.push(rumble, rumbleF, gRumble)
+    rumble.start()
+    this.nodes.push(rumble, rumbleF, gRumble)
 
-    // Random drip sounds
+    // Random drip tones - simple oscillators
     const drip = () => {
-      const osc = this.ctx.createOscillator()
-      const g = this.ctx.createGain()
-      const freq = 800 + Math.random() * 600
-      osc.type = 'sine'; osc.frequency.value = freq
-      g.gain.setValueAtTime(0, this.ctx.currentTime)
-      g.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 0.01)
-      g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.15)
-      osc.connect(g); g.connect(this.master)
-      osc.start(); osc.stop(this.ctx.currentTime + 0.18)
+      if (!this.ctx || this.ctx.state === 'closed') return
+      try {
+        const osc = this.ctx.createOscillator()
+        const g = this.ctx.createGain()
+        const freq = 800 + Math.random() * 600
+        osc.type = 'sine'
+        osc.frequency.value = safeFreq(freq)
+        const t = this.ctx.currentTime
+        g.gain.setValueAtTime(0, t)
+        g.gain.linearRampToValueAtTime(0.035, t + 0.015)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.18)
+        osc.connect(g); g.connect(this.master)
+        osc.start(t); osc.stop(t + 0.2)
+      } catch {}
     }
-    const iv = setInterval(drip, 120 + Math.random() * 180)
-    this.intervals.push(iv)
+    this.intervals.push(setInterval(drip, 150 + Math.random() * 200))
   }
 
-  // 🔥 Bonfire — warm crackle + deep warmth
   buildBonfire() {
-    // Deep warm bass
-    const warmth = this.noise('brown')
-    const warmF = this.filter('lowpass', 300, 0.5)
-    const gWarm = this.gain(0.5)
-    this.lfo(0.3, 0.1, gWarm.gain)
-    warmth.connect(warmF); warmF.connect(gWarm); gWarm.connect(this.master)
-    warmth.start(); this.nodes.push(warmth, warmF, gWarm)
+    // Warm bass
+    const warm = this.noise('brown')
+    const warmF = this.filter('lowpass', 280, 0.4)
+    const gWarm = this.gain(0.45)
+    warm.connect(warmF); warmF.connect(gWarm); gWarm.connect(this.master)
+    warm.start()
+    this.nodes.push(warm, warmF, gWarm)
+    this.slowLFO(gWarm, 0.45, 0.1, 4000)
 
-    // Mid crackle hiss
+    // Mid crackle
     const hiss = this.noise('pink')
-    const hissF = this.filter('bandpass', 2200, 2)
-    const gHiss = this.gain(0.12)
-    this.lfo(0.7, 0.06, gHiss.gain)
+    const hissF = this.filter('bandpass', 2000, 1.5)
+    const gHiss = this.gain(0.1)
     hiss.connect(hissF); hissF.connect(gHiss); gHiss.connect(this.master)
-    hiss.start(); this.nodes.push(hiss, hissF, gHiss)
+    hiss.start()
+    this.nodes.push(hiss, hissF, gHiss)
+    this.slowLFO(gHiss, 0.1, 0.04, 3000)
 
-    // Random sharp crackles
+    // Sharp crackles
     const crackle = () => {
-      const n = this.noise('white', 0.05)
-      const f = this.filter('highpass', 1500)
-      const g = this.gain(0)
-      const t = this.ctx.currentTime
-      g.gain.setValueAtTime(0, t)
-      g.gain.linearRampToValueAtTime(0.15 + Math.random() * 0.1, t + 0.005)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08)
-      n.connect(f); f.connect(g); g.connect(this.master)
-      n.start(); n.stop(t + 0.1)
+      if (!this.ctx || this.ctx.state === 'closed') return
+      try {
+        const bufSize = Math.floor(this.ctx.sampleRate * 0.04)
+        const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate)
+        const d = buf.getChannelData(0)
+        for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1
+        const src = this.ctx.createBufferSource()
+        src.buffer = buf
+        const g = this.ctx.createGain()
+        const t = this.ctx.currentTime
+        g.gain.setValueAtTime(0, t)
+        g.gain.linearRampToValueAtTime(0.08 + Math.random() * 0.08, t + 0.005)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.06)
+        src.connect(g); g.connect(this.master)
+        src.start(t); src.stop(t + 0.07)
+      } catch {}
     }
-    const iv = setInterval(crackle, 200 + Math.random() * 300)
-    this.intervals.push(iv)
+    this.intervals.push(setInterval(crackle, 250 + Math.random() * 400))
   }
 
-  // 🌿 Forest — gentle wind + bird-like tones + rustle
   buildForest() {
-    // Wind rustle
+    // Gentle wind
     const wind = this.noise('pink')
-    const wf = this.filter('bandpass', 600, 0.4)
-    const gWind = this.gain(0.22)
-    this.lfo(0.15, 0.12, gWind.gain)
+    const wf = this.filter('bandpass', 500, 0.3)
+    const gWind = this.gain(0.2)
     wind.connect(wf); wf.connect(gWind); gWind.connect(this.master)
-    wind.start(); this.nodes.push(wind, wf, gWind)
+    wind.start()
+    this.nodes.push(wind, wf, gWind)
+    this.slowLFO(gWind, 0.2, 0.1, 12000)
 
-    // Deep forest ambience
+    // Deep ambience
     const deep = this.noise('brown')
-    const df = this.filter('lowpass', 400)
-    const gDeep = this.gain(0.15)
+    const df = this.filter('lowpass', 350, 0.4)
+    const gDeep = this.gain(0.12)
     deep.connect(df); df.connect(gDeep); gDeep.connect(this.master)
-    deep.start(); this.nodes.push(deep, df, gDeep)
+    deep.start()
+    this.nodes.push(deep, df, gDeep)
 
-    // Occasional bird-like chirps
+    // Bird chirps
     const chirp = () => {
-      if (Math.random() > 0.4) return
-      const osc = this.ctx.createOscillator()
-      const g = this.ctx.createGain()
-      const baseF = 1800 + Math.random() * 1200
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(baseF, this.ctx.currentTime)
-      osc.frequency.linearRampToValueAtTime(baseF * 1.3, this.ctx.currentTime + 0.08)
-      osc.frequency.linearRampToValueAtTime(baseF, this.ctx.currentTime + 0.16)
-      g.gain.setValueAtTime(0, this.ctx.currentTime)
-      g.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 0.03)
-      g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.22)
-      osc.connect(g); g.connect(this.master)
-      osc.start(); osc.stop(this.ctx.currentTime + 0.25)
+      if (Math.random() > 0.4 || !this.ctx || this.ctx.state === 'closed') return
+      try {
+        const osc = this.ctx.createOscillator()
+        const g = this.ctx.createGain()
+        const base = safeFreq(1800 + Math.random() * 1200)
+        osc.type = 'sine'
+        osc.frequency.value = base
+        const t = this.ctx.currentTime
+        osc.frequency.setValueAtTime(base, t)
+        osc.frequency.linearRampToValueAtTime(safeFreq(base * 1.25), t + 0.1)
+        osc.frequency.linearRampToValueAtTime(base, t + 0.2)
+        g.gain.setValueAtTime(0, t)
+        g.gain.linearRampToValueAtTime(0.035, t + 0.04)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.25)
+        osc.connect(g); g.connect(this.master)
+        osc.start(t); osc.stop(t + 0.28)
+      } catch {}
     }
-    const iv = setInterval(chirp, 800 + Math.random() * 1200)
-    this.intervals.push(iv)
+    this.intervals.push(setInterval(chirp, 900 + Math.random() * 1500))
   }
 
-  // ☕ Café — low murmur + occasional cup/page sounds
   buildCafe() {
     // Crowd murmur
     const murmur = this.noise('pink')
-    const mf1 = this.filter('lowpass', 900)
-    const mf2 = this.filter('highpass', 200)
-    const gMur = this.gain(0.3)
-    this.lfo(0.08, 0.06, gMur.gain)
+    const mf1 = this.filter('lowpass', 800, 0.4)
+    const mf2 = this.filter('highpass', 180, 0.4)
+    const gMur = this.gain(0.28)
     murmur.connect(mf1); mf1.connect(mf2); mf2.connect(gMur); gMur.connect(this.master)
-    murmur.start(); this.nodes.push(murmur, mf1, mf2, gMur)
+    murmur.start()
+    this.nodes.push(murmur, mf1, mf2, gMur)
+    this.slowLFO(gMur, 0.28, 0.06, 10000)
 
-    // Warm background warmth
+    // Background warmth
     const warm = this.noise('brown')
-    const wf = this.filter('lowpass', 250)
-    const gWarm = this.gain(0.1)
+    const wf = this.filter('lowpass', 220, 0.4)
+    const gWarm = this.gain(0.08)
     warm.connect(wf); wf.connect(gWarm); gWarm.connect(this.master)
-    warm.start(); this.nodes.push(warm, wf, gWarm)
+    warm.start()
+    this.nodes.push(warm, wf, gWarm)
 
-    // Occasional soft cup/page tap
+    // Soft taps
     const tap = () => {
-      if (Math.random() > 0.35) return
-      const osc = this.ctx.createOscillator()
-      const g = this.ctx.createGain()
-      osc.type = 'sine'; osc.frequency.value = 300 + Math.random() * 200
-      g.gain.setValueAtTime(0, this.ctx.currentTime)
-      g.gain.linearRampToValueAtTime(0.05, this.ctx.currentTime + 0.01)
-      g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.3)
-      osc.connect(g); g.connect(this.master)
-      osc.start(); osc.stop(this.ctx.currentTime + 0.35)
+      if (Math.random() > 0.3 || !this.ctx || this.ctx.state === 'closed') return
+      try {
+        const osc = this.ctx.createOscillator()
+        const g = this.ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = safeFreq(300 + Math.random() * 250)
+        const t = this.ctx.currentTime
+        g.gain.setValueAtTime(0, t)
+        g.gain.linearRampToValueAtTime(0.04, t + 0.015)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.35)
+        osc.connect(g); g.connect(this.master)
+        osc.start(t); osc.stop(t + 0.4)
+      } catch {}
     }
-    const iv = setInterval(tap, 2000 + Math.random() * 3000)
-    this.intervals.push(iv)
+    this.intervals.push(setInterval(tap, 2500 + Math.random() * 3500))
   }
 
-  // 🌊 Ocean — rhythmic wave swoosh
   buildOcean() {
+    // Wave body
     const wave = this.noise('pink')
-    const wf = this.filter('bandpass', 500, 0.5)
-    const gWave = this.gain(0.4)
-    // LFO for wave rhythm ~8s period
-    const lfo = this.ctx.createOscillator()
-    const lfoG = this.ctx.createGain()
-    lfo.frequency.value = 0.12
-    lfoG.gain.value = 0.25
-    lfo.connect(lfoG); lfoG.connect(gWave.gain)
-    lfo.start(); this.nodes.push(lfo, lfoG)
+    const wf = this.filter('bandpass', 400, 0.35)
+    const gWave = this.gain(0.38)
     wave.connect(wf); wf.connect(gWave); gWave.connect(this.master)
-    wave.start(); this.nodes.push(wave, wf, gWave)
+    wave.start()
+    this.nodes.push(wave, wf, gWave)
+    // Slow wave rhythm ~8s
+    this.slowLFO(gWave, 0.38, 0.22, 8000)
 
     // Deep undertow
     const deep = this.noise('brown')
-    const df = this.filter('lowpass', 180)
-    const gDeep = this.gain(0.2)
+    const df = this.filter('lowpass', 160, 0.4)
+    const gDeep = this.gain(0.18)
     deep.connect(df); df.connect(gDeep); gDeep.connect(this.master)
-    deep.start(); this.nodes.push(deep, df, gDeep)
+    deep.start()
+    this.nodes.push(deep, df, gDeep)
   }
 
-  // 🍃 Wind — open breeze through leaves
   buildWind() {
+    // Open breeze
     const wind = this.noise('pink')
-    const wf1 = this.filter('bandpass', 800, 0.3)
-    const wf2 = this.filter('highpass', 300)
-    const gWind = this.gain(0.35)
-    this.lfo(0.1, 0.2, gWind.gain)
-    this.lfo(0.23, 0.08, gWind.gain)
+    const wf1 = this.filter('bandpass', 700, 0.25)
+    const wf2 = this.filter('highpass', 280, 0.4)
+    const gWind = this.gain(0.32)
     wind.connect(wf1); wf1.connect(wf2); wf2.connect(gWind); gWind.connect(this.master)
-    wind.start(); this.nodes.push(wind, wf1, wf2, gWind)
+    wind.start()
+    this.nodes.push(wind, wf1, wf2, gWind)
+    this.slowLFO(gWind, 0.32, 0.18, 9000)
 
-    // Leaf rustle bursts
+    // Leaf rustle
     const rustle = this.noise('white')
-    const rf = this.filter('bandpass', 3000, 2)
+    const rf = this.filter('highpass', 2500, 0.4)
     const gRustle = this.gain(0.04)
-    this.lfo(0.4, 0.03, gRustle.gain)
     rustle.connect(rf); rf.connect(gRustle); gRustle.connect(this.master)
-    rustle.start(); this.nodes.push(rustle, rf, gRustle)
+    rustle.start()
+    this.nodes.push(rustle, rf, gRustle)
+    this.slowLFO(gRustle, 0.04, 0.025, 5000)
   }
 
   build(id: SoundId) {
@@ -270,12 +311,16 @@ class AmbientEngine {
   destroy() {
     this.intervals.forEach(clearInterval)
     this.intervals = []
-    this.nodes.forEach(n => { try { (n as AudioScheduledSourceNode).stop?.() } catch {} try { n.disconnect() } catch {} })
+    this.nodes.forEach(n => {
+      try { (n as AudioScheduledSourceNode).stop?.() } catch {}
+      try { n.disconnect() } catch {}
+    })
     this.nodes = []
+    try { this.ctx.close() } catch {}
   }
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+// Component
 export function AmbientNoise() {
   const { lang } = useStore()
   const isAr = lang === 'ar'
@@ -305,46 +350,68 @@ export function AmbientNoise() {
     engineRef.current?.setVolume(volume)
   }, [volume])
 
-  useEffect(() => () => stop(), [])
+  useEffect(() => () => stop(), [stop])
+
+  const t = (ar: string, en: string) => isAr ? ar : en
 
   return (
-    <div className="relative">
+    <div style={{ position: 'relative' }}>
       <motion.button whileTap={{ scale: 0.9 }} onClick={() => setOpen(v => !v)}
-        className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all',
-          playing
-            ? 'bg-teal-500/20 border-teal-500/40 text-teal-400'
-            : 'bg-muted/50 border-border/50 text-muted-foreground hover:text-foreground')}>
-        <Music2 className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline">{playing ? (isAr ? 'يعزف' : 'Playing') : (isAr ? 'أصوات' : 'Sounds')}</span>
-        {playing && <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '5px 12px', borderRadius: 'var(--radius-full)',
+          border: '1px solid var(--border)', fontSize: 12, fontWeight: 600,
+          color: playing ? 'var(--primary)' : 'var(--text-muted)',
+          background: playing ? 'rgba(62,154,166,0.1)' : 'transparent',
+          transition: '.15s ease', cursor: 'pointer',
+        }}>
+        <Music2 size={13} />
+        <span className="hidden sm:inline">{playing ? t('يعزف', 'Playing') : t('اصوات', 'Sounds')}</span>
+        {playing && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)', animation: 'pulse 2s ease infinite', flexShrink: 0 }} />}
       </motion.button>
 
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.95 }}
-            className="absolute top-full mt-2 end-0 z-50 w-72 bg-card rounded-2xl border border-border shadow-xl p-4 space-y-4">
-
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold">{isAr ? '🎵 أصوات التركيز' : '🎵 Focus Sounds'}</p>
-              <button onClick={() => setOpen(false)} className="p-1 rounded-lg text-muted-foreground hover:text-foreground">
-                <X className="w-3.5 h-3.5" />
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)',
+              insetInlineEnd: 0, zIndex: 50, width: 260,
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)', padding: 16,
+              boxShadow: 'var(--shadow-lg)',
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {t('اصوات التركيز', 'Focus Sounds')}
+              </p>
+              <button onClick={() => setOpen(false)} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <X size={14} />
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
               {SOUNDS.map(s => (
-                <motion.button key={s.id} whileTap={{ scale: 0.93 }} onClick={() => play(s.id)}
-                  className={cn('flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-medium transition-all',
-                    playing === s.id
-                      ? 'border-primary/60 bg-primary/10 text-primary'
-                      : 'border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60')}>
-                  <span className="text-xl leading-none">{s.emoji}</span>
-                  <span className="text-[11px]">{isAr ? s.labelAr : s.labelEn}</span>
+                <motion.button key={s.id} whileTap={{ scale: 0.94 }} onClick={() => play(s.id)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    padding: '12px 8px', borderRadius: 'var(--radius-md)',
+                    border: `1px solid ${playing === s.id ? s.color + '60' : 'var(--border)'}`,
+                    background: playing === s.id ? s.color + '15' : 'var(--bg)',
+                    cursor: 'pointer', transition: '.15s ease',
+                  }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', background: s.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 14, color: s.color, fontWeight: 700 }}>{s.id.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: playing === s.id ? s.color : 'var(--text-secondary)' }}>
+                    {isAr ? s.labelAr : s.label}
+                  </span>
                   {playing === s.id && (
-                    <div className="flex gap-0.5 items-end h-2.5">
+                    <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 10 }}>
                       {[1,2,3].map(i => (
-                        <motion.div key={i} className="w-0.5 rounded-full bg-primary"
+                        <motion.div key={i} style={{ width: 2, borderRadius: 2, background: s.color }}
                           animate={{ height: ['4px','10px','4px'] }}
                           transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }} />
                       ))}
@@ -355,25 +422,32 @@ export function AmbientNoise() {
             </div>
 
             {playing && (
-              <div className="space-y-2 pt-1 border-t border-border/40">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <VolumeX className="w-3.5 h-3.5" />
-                  <span className="font-medium text-foreground">{Math.round(volume * 100)}%</span>
-                  <Volume2 className="w-3.5 h-3.5" />
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <VolumeX size={12} />
+                  <span>{Math.round(volume * 100)}%</span>
+                  <Volume2 size={12} />
                 </div>
                 <input type="range" min={0.05} max={1} step={0.05} value={volume}
                   onChange={e => setVolume(Number(e.target.value))}
-                  className="w-full accent-teal-500 cursor-pointer" />
+                  style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer', marginBottom: 10 }} />
                 <button onClick={stop}
-                  className="w-full py-2 rounded-xl bg-muted/60 text-muted-foreground text-xs font-medium hover:bg-destructive/10 hover:text-destructive transition-colors">
-                  {isAr ? '⏹ إيقاف' : '⏹ Stop'}
+                  style={{
+                    width: '100%', padding: '8px', borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg)', border: '1px solid var(--border)',
+                    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
+                    cursor: 'pointer', transition: '.15s ease',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--error)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--error)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+                  {t('ايقاف', 'Stop')}
                 </button>
               </div>
             )}
 
             {!playing && (
-              <p className="text-[10px] text-muted-foreground text-center">
-                {isAr ? 'اختر صوتاً لتبدأ جلسة التركيز' : 'Pick a sound to start your focus session'}
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 4 }}>
+                {t('اختر صوتا للبدء', 'Pick a sound to start')}
               </p>
             )}
           </motion.div>

@@ -1,3 +1,4 @@
+import { upsertQuizSession, deleteQuizRemote } from '@/lib/sync'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -51,16 +52,17 @@ function playSound(type: 'correct' | 'incorrect' | 'complete') {
 
 // ─── Format selector badge ─────────────────────────────────────────────────────
 const FORMAT_META: { format: QuizFormat; icon: string; color: string }[] = [
-  { format: 'mcq', icon: '🔘', color: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
-  { format: 'truefalse', icon: '⚖️', color: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30' },
-  { format: 'flashcard', icon: '🃏', color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30' },
-  { format: 'fillblank', icon: '✏️', color: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30' },
-  { format: 'shortanswer', icon: '📝', color: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30' },
-  { format: 'longanswer', icon: '📄', color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30' },
+  { format: 'mcq', icon: 'mcq', color: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30' },
+  { format: 'truefalse', icon: 'tf', color: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30' },
+  { format: 'flashcard', icon: 'card', color: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30' },
+  { format: 'fillblank', icon: 'fill', color: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30' },
+  { format: 'shortanswer', icon: 'short', color: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30' },
+  { format: 'longanswer', icon: 'long', color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30' },
 ]
 
 // ─── QUIZ SETUP ───────────────────────────────────────────────────────────────
 function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
+  const supabaseUser = useStore(s => s.supabaseUser)
   const { t, lang } = useT()
   const { files, apiConfig, addQuizSession } = useStore()
   const [format, setFormat] = useState<QuizFormat>('mcq')
@@ -78,7 +80,7 @@ function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
       const questions = await generateQuizQuestions(source, format, count, apiConfig, lang)
       const session: QuizSession = {
         id: `quiz-${Date.now()}`,
-        title: `${t(format)} — ${source.slice(0, 30)}`,
+        title: `${t(format)} - ${source.slice(0, 30)}`,
         format,
         questions: questions.map((q: any, i: number) => ({ ...q, id: q.id || `q${i}` })),
         attempts: [],
@@ -86,7 +88,7 @@ function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
         completed: false,
         createdAt: new Date().toISOString(),
       }
-      addQuizSession(session)
+      addQuizSession(session); supabaseUser?.id && upsertQuizSession(supabaseUser.id, session).catch(console.warn)
       onStart(session)
     } catch (e: any) {
       setError(e.message || t('error'))
@@ -104,14 +106,14 @@ function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
 
       <div className="space-y-5">
         {/* Format selector */}
-        <div className="glass-card rounded-2xl p-5">
+        <div className="glass-card rounded-lg p-5">
           <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">{t('quizFormat')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {FORMAT_META.map(({ format: f, icon, color }) => (
               <button key={f} onClick={() => setFormat(f)}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
-                  format === f ? color + ' ring-2 ring-offset-1 ring-current/30' : 'border-border/60 hover:bg-muted'
+                  format === f ? color + ' ring-2 ring-offset-1 ring-current/30' : 'border-border hover:bg-muted'
                 )}
               >
                 <span>{icon}</span><span>{t(f)}</span>
@@ -121,7 +123,7 @@ function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
         </div>
 
         {/* Source */}
-        <div className="glass-card rounded-2xl p-5 space-y-3">
+        <div className="glass-card rounded-lg p-5 space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('selectTopicFile')}</h3>
           {files.length > 0 && (
             <select value={fileId} onChange={e => { setFileId(e.target.value); if (e.target.value) setTopic('') }}
@@ -141,7 +143,7 @@ function QuizSetup({ onStart }: { onStart: (session: QuizSession) => void }) {
         </div>
 
         {/* Count */}
-        <div className="glass-card rounded-2xl p-5">
+        <div className="glass-card rounded-lg p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('numQuestions')}</h3>
             <span className="badge-gold">{count}</span>
@@ -187,13 +189,13 @@ function FlashCard({ q, onResult }: { q: QuizQuestion; onResult: (correct: boole
       <div className="perspective w-full max-w-md cursor-pointer" onClick={() => setFlipped(!flipped)}>
         <div className={cn('card-inner w-full relative', flipped && 'flipped')} style={{ height: '240px' }}>
           {/* Front */}
-          <div className="card-face absolute inset-0 glass-card rounded-2xl flex flex-col items-center justify-center p-8 text-center">
-            <BookOpen className="w-8 h-8 text-primary/50 mb-4" />
+          <div className="card-face absolute inset-0 glass-card rounded-lg flex flex-col items-center justify-center p-8 text-center">
+            <BookOpen className="w-8 h-8 text-primary mb-4" />
             <p className="text-lg font-semibold" dir="auto">{q.question}</p>
             <p className="text-xs text-muted-foreground mt-4">{t('flipCard')} ↕</p>
           </div>
           {/* Back */}
-          <div className="card-face card-back absolute inset-0 rounded-2xl flex flex-col items-center justify-center p-8 text-center"
+          <div className="card-face card-back absolute inset-0 rounded-lg flex flex-col items-center justify-center p-8 text-center"
             style={{ background: 'linear-gradient(135deg, #1A4D53, #2D7A84)' }}>
             <Lightbulb className="w-8 h-8 text-gold-light/70 mb-4" />
             <p className="text-lg font-semibold text-white" dir="auto">{q.correctAnswer}</p>
@@ -217,6 +219,7 @@ function FlashCard({ q, onResult }: { q: QuizQuestion; onResult: (correct: boole
 
 // ─── QUIZ PLAYER ──────────────────────────────────────────────────────────────
 function QuizPlayer({ session, onComplete }: { session: QuizSession; onComplete: () => void }) {
+  const supabaseUser = useStore(s => s.supabaseUser)
   const { t, lang } = useT()
   const { apiConfig, updateQuizSession } = useStore()
   const [currentIdx, setCurrentIdx] = useState(0)
@@ -305,13 +308,13 @@ function QuizPlayer({ session, onComplete }: { session: QuizSession; onComplete:
       {/* Progress */}
       <div className="flex items-center justify-between text-sm mb-1">
         <span className="text-muted-foreground">{t('session')} {currentIdx + 1} / {session.questions.length}</span>
-        <span className="badge-gold">{session.title.split('—')[0].trim()}</span>
+        <span className="badge-gold">{session.title.split('-')[0].trim()}</span>
       </div>
       <div className="quiz-progress"><div className="quiz-progress-fill" style={{ width: `${progress}%` }} /></div>
 
       {/* Question card */}
       <motion.div key={q.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-        className="glass-card rounded-2xl p-6 space-y-5">
+        className="glass-card rounded-lg p-6 space-y-5">
         <p className="text-base font-semibold leading-relaxed" dir="auto">{q.question}</p>
 
         {/* MCQ */}
@@ -326,11 +329,11 @@ function QuizPlayer({ session, onComplete }: { session: QuizSession; onComplete:
                   disabled={!!feedback}
                   className={cn(
                     'w-full text-start px-4 py-3 rounded-xl border text-sm transition-all',
-                    !showResult && isSelected && 'border-primary bg-primary/10',
-                    !showResult && !isSelected && 'border-border/60 hover:border-primary/40 hover:bg-muted',
+                    !showResult && isSelected && 'border-primary bg-primary',
+                    !showResult && !isSelected && 'border-border hover:border-primary/40 hover:bg-muted',
                     showResult && isCorrectOpt && 'border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300',
                     showResult && isSelected && !isCorrectOpt && 'border-destructive bg-destructive/15 text-destructive',
-                    showResult && !isSelected && !isCorrectOpt && 'border-border/40 opacity-50',
+                    showResult && !isSelected && !isCorrectOpt && 'border-border opacity-50',
                   )}
                   dir="auto"
                 >{opt}</button>
@@ -343,7 +346,7 @@ function QuizPlayer({ session, onComplete }: { session: QuizSession; onComplete:
         {q.format === 'truefalse' && (
           <div className="flex gap-3">
             {['true', 'false'].map(v => {
-              const label = v === 'true' ? '✓ True / صح' : '✗ False / خطأ'
+              const label = v === 'true' ? 'True / صح' : 'False / خطأ'
               const isSelected = answer === v
               const showResult = !!feedback
               const isCorrectOpt = q.correctAnswer.toLowerCase() === v
@@ -352,8 +355,8 @@ function QuizPlayer({ session, onComplete }: { session: QuizSession; onComplete:
                   disabled={!!feedback}
                   className={cn(
                     'flex-1 py-3 rounded-xl border font-semibold text-sm transition-all',
-                    !showResult && isSelected && 'border-primary bg-primary/10',
-                    !showResult && !isSelected && 'border-border/60 hover:border-primary/40 hover:bg-muted',
+                    !showResult && isSelected && 'border-primary bg-primary',
+                    !showResult && !isSelected && 'border-border hover:border-primary/40 hover:bg-muted',
                     showResult && isCorrectOpt && 'border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300',
                     showResult && isSelected && !isCorrectOpt && 'border-destructive bg-destructive/15 text-destructive',
                   )}
@@ -459,20 +462,20 @@ function QuizResults({ session, onNew, onRetry }: { session: QuizSession; onNew:
   const correct = session.attempts.filter(a => a.isCorrect).length
   const total = session.questions.length
 
-  const emoji = score >= 80 ? '🏆' : score >= 60 ? '⭐' : '📚'
+  const emoji = ''
   const color = score >= 80 ? 'text-teal-500' : score >= 60 ? 'text-gold' : 'text-destructive'
 
   return (
     <div className="section-wrapper max-w-xl text-center space-y-6">
       <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring' }}>
-        <div className="text-6xl mb-4">{emoji}</div>
+        <div className="text-6xl mb-4"></div>
         <h2 className="font-display text-3xl">{t('quizComplete')}</h2>
         <p className={cn('text-6xl font-display mt-4', color)}>{score}%</p>
         <p className="text-muted-foreground mt-2">{correct} / {total} correct</p>
       </motion.div>
 
       {/* Breakdown */}
-      <div className="glass-card rounded-2xl p-5 space-y-3 text-start">
+      <div className="glass-card rounded-lg p-5 space-y-3 text-start">
         {session.questions.map((q, i) => {
           const attempt = session.attempts.find(a => a.questionId === q.id)
           return (
@@ -490,7 +493,7 @@ function QuizResults({ session, onNew, onRetry }: { session: QuizSession; onNew:
       </div>
 
       <div className="flex gap-3">
-        <button onClick={onRetry} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 font-medium text-sm hover:bg-muted transition-colors">
+        <button onClick={onRetry} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border font-medium text-sm hover:bg-muted transition-colors">
           <RotateCcw className="w-4 h-4" />{t('reset')}
         </button>
         <button onClick={onNew} className="btn-teal flex-1 py-2.5">

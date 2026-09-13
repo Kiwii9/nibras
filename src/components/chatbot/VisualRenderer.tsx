@@ -97,21 +97,21 @@ function TimelineSVG({ data }: { data: TimelineData }) {
 // ─── Comparison Table ─────────────────────────────────────────────────────────
 function ComparisonTable({ data }: { data: TableData }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/50">
-      {data.title && <p className="text-xs font-semibold text-primary px-4 py-2 border-b border-border/30 bg-primary/5">{data.title}</p>}
+    <div className="overflow-x-auto rounded-xl border border-border">
+      {data.title && <p className="text-xs font-semibold text-primary px-4 py-2 border-b border-border bg-primary">{data.title}</p>}
       <table className="w-full text-xs">
         <thead>
-          <tr className="bg-muted/50">
+          <tr className="bg-muted">
             {(data.headers || []).map((h, i) => (
-              <th key={i} className="px-4 py-2.5 text-start font-semibold text-foreground border-b border-border/30">{h}</th>
+              <th key={i} className="px-4 py-2.5 text-start font-semibold text-foreground border-b border-border">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {(data.rows || []).map((row, i) => (
-            <tr key={i} className={i % 2 === 0 ? 'bg-transparent' : 'bg-muted/20'}>
+            <tr key={i} className={i % 2 === 0 ? 'bg-transparent' : 'bg-muted'}>
               {row.map((cell, j) => (
-                <td key={j} className="px-4 py-2 text-muted-foreground border-b border-border/20">{cell}</td>
+                <td key={j} className="px-4 py-2 text-muted-foreground border-b border-border">{cell}</td>
               ))}
             </tr>
           ))}
@@ -173,20 +173,20 @@ export function VisualRenderer({ type, data, isAr }: VisualRendererProps) {
   const [expanded, setExpanded] = useState(true)
 
   const typeLabels: Record<VisualType, string> = {
-    mindmap:  isAr ? '🧠 خريطة ذهنية' : '🧠 Mind Map',
-    timeline: isAr ? '📅 جدول زمني'   : '📅 Timeline',
-    table:    isAr ? '📊 جدول مقارنة' : '📊 Comparison Table',
-    diagram:  isAr ? '🔄 مخطط انسيابي': '🔄 Flowchart',
+    mindmap:  isAr ? 'خريطة ذهنية' : 'Mind Map',
+    timeline: isAr ? 'جدول زمني'   : 'Timeline',
+    table:    isAr ? 'جدول مقارنة' : 'Comparison Table',
+    diagram:  isAr ? 'مخطط انسيابي': 'Flowchart',
   }
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="my-3 rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden">
+      className="my-3 rounded-lg border border-primary/20 bg-primary overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/10">
         <span className="text-xs font-semibold text-primary">{typeLabels[type]}</span>
         <div className="flex gap-2">
           <button onClick={() => setExpanded(v => !v)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted/50">
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted">
             {expanded ? (isAr ? 'طيّ' : 'Collapse') : (isAr ? 'توسيع' : 'Expand')}
           </button>
         </div>

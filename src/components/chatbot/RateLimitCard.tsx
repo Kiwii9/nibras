@@ -45,16 +45,16 @@ export function RateLimitCard({ isAr, type }: RateLimitCardProps) {
     daily_limit: {
       icon: <Sparkles className="w-8 h-8 text-teal-400" />,
       bg: 'bg-teal-500/8 border-teal-500/25',
-      title: t('استخدمت حصتك لليوم 🎓', "You've used your daily quota 🎓"),
+      title: t('استخدمت حصتك لليوم', "You've used your daily quota"),
       body: t(
-        'أحسنت! استمر غداً — محادثاتك ومذاكراتك محفوظة كلها.',
-        'Great work today! Come back tomorrow — all your chats and progress are saved.'
+        'أحسنت! استمر غداً - محادثاتك ومذاكراتك محفوظة كلها.',
+        'Great work today! Come back tomorrow - all your chats and progress are saved.'
       ),
       showCountdown: true,
     },
     platform_key_missing: {
       icon: <Key className="w-8 h-8 text-primary" />,
-      bg: 'bg-primary/8 border-primary/25',
+      bg: 'bg-primary border-primary/25',
       title: t('المساعد يحتاج مفتاح API', 'Assistant needs an API key'),
       body: t(
         'المنصة لم تُهيأ بعد. يمكنك إضافة مفتاحك الخاص مجاناً من OpenRouter.',
@@ -68,7 +68,7 @@ export function RateLimitCard({ isAr, type }: RateLimitCardProps) {
 
   return (
     <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-      className={`mx-auto max-w-sm rounded-2xl border p-5 text-center space-y-3 ${cfg.bg}`}>
+      className={`mx-auto max-w-sm rounded-lg border p-5 text-center space-y-3 ${cfg.bg}`}>
       <div className="flex justify-center">{cfg.icon}</div>
       <div>
         <p className="font-semibold text-sm text-foreground mb-1" dir="auto">{cfg.title}</p>
@@ -76,7 +76,7 @@ export function RateLimitCard({ isAr, type }: RateLimitCardProps) {
       </div>
 
       {cfg.showCountdown && (
-        <div className="flex items-center justify-center gap-2 bg-muted/50 rounded-xl px-4 py-2.5">
+        <div className="flex items-center justify-center gap-2 bg-muted rounded-xl px-4 py-2.5">
           <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{t('يُعاد التعيين خلال', 'Resets in')}</span>
           <span className="font-mono text-sm font-bold text-foreground">{countdown}</span>
@@ -91,7 +91,7 @@ export function RateLimitCard({ isAr, type }: RateLimitCardProps) {
           {t('استخدم مفتاحي الخاص', 'Use my own API key')}
         </Link>
         <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer"
-          className="w-full py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground border border-border/50 hover:bg-muted/50 transition-colors">
+          className="w-full py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground border border-border hover:bg-muted transition-colors">
           {t('احصل على مفتاح مجاني ←', 'Get a free key ←')}
         </a>
       </div>

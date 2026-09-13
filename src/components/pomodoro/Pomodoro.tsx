@@ -79,10 +79,10 @@ function PomodoroSettings({ onClose }: { onClose: () => void }) {
       <label className="text-xs text-muted-foreground font-medium block mb-1.5">{label}</label>
       <div className="flex items-center gap-2">
         <button onClick={() => setLocal(s => ({ ...s, [key]: Math.max(1, s[key] - 1) }))}
-          className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center font-bold hover:bg-muted/80 transition-colors">−</button>
+          className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center font-bold hover:bg-muted transition-colors">−</button>
         <span className="w-10 text-center font-semibold text-sm">{local[key]}</span>
         <button onClick={() => setLocal(s => ({ ...s, [key]: Math.min(60, s[key] + 1) }))}
-          className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center font-bold hover:bg-muted/80 transition-colors">+</button>
+          className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center font-bold hover:bg-muted transition-colors">+</button>
       </div>
     </div>
   )
@@ -91,7 +91,7 @@ function PomodoroSettings({ onClose }: { onClose: () => void }) {
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <motion.div className="relative z-10 w-full max-w-sm glass-card rounded-2xl p-6 shadow-teal-lg">
+      <motion.div className="relative z-10 w-full max-w-sm glass-card rounded-lg p-6 shadow-teal-lg">
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-display text-xl">{t('settings')}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
@@ -107,7 +107,7 @@ function PomodoroSettings({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
             {t('cancel')}
           </button>
           <button onClick={() => { setPomodoroSettings(local); onClose() }} className="btn-teal flex-1 py-2.5">
@@ -184,7 +184,7 @@ export function Pomodoro() {
 
   // Update tab title
   useEffect(() => {
-    document.title = running ? `${formatTime(timeLeft)} — Nibras` : 'Nibras نِبْرَاس'
+    document.title = running ? `${formatTime(timeLeft)} - Nibras` : 'Nibras نِبْرَاس'
     return () => { document.title = 'Nibras نِبْرَاس' }
   }, [timeLeft, running])
 
@@ -222,7 +222,7 @@ export function Pomodoro() {
       </div>
 
       {/* Mode tabs */}
-      <div className="flex gap-1.5 bg-muted/50 p-1 rounded-xl">
+      <div className="flex gap-1.5 bg-muted p-1 rounded-xl">
         {(['work', 'short', 'long'] as Mode[]).map(m => (
           <button key={m} onClick={() => switchMode(m)}
             className={cn(
@@ -236,7 +236,7 @@ export function Pomodoro() {
 
       {/* Timer circle */}
       <motion.div
-        className="glass-card rounded-3xl p-8 flex flex-col items-center gap-6 teal-noise"
+        className="glass-card rounded-xl p-8 flex flex-col items-center gap-6 teal-noise"
         animate={{ background: running ? 'linear-gradient(135deg, hsl(185 50% 10%), hsl(185 40% 8%))' : undefined }}
         transition={{ duration: 1 }}
       >
@@ -269,7 +269,7 @@ export function Pomodoro() {
           <motion.button
             whileTap={{ scale: 0.92 }}
             onClick={handleReset}
-            className="w-11 h-11 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+            className="w-11 h-11 rounded-full flex items-center justify-center bg-muted hover:bg-muted text-muted-foreground transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </motion.button>
@@ -309,7 +309,7 @@ export function Pomodoro() {
           { label: t('sessions'), value: sessionCount, icon: Zap },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="glass-card rounded-xl p-4 text-center">
-            <Icon className="w-4 h-4 text-primary/60 mx-auto mb-1.5" />
+            <Icon className="w-4 h-4 text-primary mx-auto mb-1.5" />
             <p className="font-semibold text-foreground">{value}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
           </div>
@@ -323,7 +323,7 @@ export function Pomodoro() {
             initial={{ opacity: 0, y: 40, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-2xl text-white text-sm font-medium shadow-teal-lg"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg text-white text-sm font-medium shadow-teal-lg"
             style={{ background: 'linear-gradient(135deg, #1A4D53, #3E9AA6)' }}
           >
             {notification}
